@@ -58,6 +58,7 @@ executable adventOfCode2018
 
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.11 && <4.12
+                       , containers >= 0.6 && < 0.7
 
   -- Directories containing source files.
   hs-source-dirs:      src

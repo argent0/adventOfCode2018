@@ -3,4 +3,4 @@ module Main where
 import qualified Day01
 
 main :: IO ()
-main = Day01.solve
+main = Day01.solve_1
