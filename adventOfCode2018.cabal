@@ -51,7 +51,7 @@ executable adventOfCode2018
   main-is:             Main.hs
 
   -- Modules included in this executable, other than Main.
-  other-modules: Day01
+  other-modules: Day01, Day02, Day03
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
@@ -59,6 +59,10 @@ executable adventOfCode2018
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.11 && <4.12
                        , containers >= 0.6 && < 0.7
+					   , linear >= 1.20 && < 2
+					   , lens >= 4.17 && < 5
+					   , attoparsec >= 0.13 && < 1
+					   , text >= 1.2.3.1 && < 2
 
   -- Directories containing source files.
   hs-source-dirs:      src
