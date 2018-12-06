@@ -74,6 +74,24 @@ solve1 centers =
 	(L.V2 mxx mxy) = maxCorner centers
 	ch = convexHull centers
 
+sum' :: [Integer] -> Integer
+sum' = DL.foldl' (+) 0
+
+solve2 :: [Point] -> Integer
+solve2 centers = --(flip trace) undefined $ show $
+	sum' $ fmap (const 1) $ filter (< 10000) $
+	fmap (\p -> sum' $ fmap (fromIntegral . (p `manDist`)) centers) points
+	where
+	closestCenter :: Point -> Maybe Point
+	closestCenter p =
+		case (minimums (compare `on` snd) $ fmap (\c -> (c, manDist p c)) centers) of
+			[(c,_)] -> Just c
+			_ -> Nothing
+	points = L.V2 <$> [mnx..mxx] <*> [mny..mxy]
+	(L.V2 mnx mny) = minCorner centers
+	(L.V2 mxx mxy) = maxCorner centers
+	ch = convexHull centers
+
 solve_1 :: IO ()
 solve_1 = 
 	SysIO.withFile "inputs/day06" SysIO.ReadMode $ \input_fh ->
@@ -81,7 +99,7 @@ solve_1 =
 		let input = partitionEithers $
 			fmap (AP.parseOnly parsePoint . T.pack ) file_lines
 		when (length (fst input) /= 0) (putStrLn "Parse Error")
-		print $ solve1 $ snd input
+		print $ solve2 $ snd input
 
 compareFrom :: Point -> Point -> Point -> Ordering
 compareFrom o l r =
