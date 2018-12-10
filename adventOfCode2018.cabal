@@ -45,13 +45,15 @@ extra-source-files:  CHANGELOG.md
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.10
 
-
 executable adventOfCode2018
   -- .hs or .lhs file containing the Main module.
   main-is:             Main.hs
 
   -- Modules included in this executable, other than Main.
-  other-modules: Day01, Day02, Day03, Day04, Day05, Day06, Day07
+  other-modules: Day10
+  				 , Util.Memo, Util.QuadTree
+                 , Day01, Day02, Day03, Day03bis
+				 , Day04, Day05, Day06, Day07, Day08, Day09
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
@@ -64,6 +66,9 @@ executable adventOfCode2018
 					   , attoparsec >= 0.13 && < 1
 					   , text >= 1.2.3.1 && < 2
 					   , time >= 1.8 && < 2
+					   , array >= 0.5
+					   , heap >= 1.0
+					   , mtl >= 2.2.2
 
   -- Directories containing source files.
   hs-source-dirs:      src
