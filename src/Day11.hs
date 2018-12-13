@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
+{- See: https://en.wikipedia.org/wiki/Summed-area_table -}
 module Day11 (
 	solve_1
 ) where
