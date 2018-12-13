@@ -77,18 +77,23 @@ bin2int = DL.foldl' (+) 0 . zipWith (*) [16,8,4,2,1] . fmap mapper
 	mapper True = 1
 	mapper False = 0
 
-type RuleSet = Map Int Bool
+-- New O(1)
+type RuleSet = Arr.Array Int Bool
 mkRuleSet :: [Rule] -> RuleSet
-mkRuleSet = Map.fromList . fmap mapper . fmap cRule
+mkRuleSet rules = Arr.array
+		(cRuleIdx (head c_rules), cRuleIdx (last c_rules)) $
+		fmap (\(CRule i b) -> (i, b)) $ c_rules
 	where
-	mapper (CRule i b) = (i,b)
+	c_rules :: [CRule]
+	c_rules = DL.sortBy (compare `on` cRuleIdx)  $ fmap cRule rules
+	cRuleIdx (CRule i _) = i
 
 applyRules :: RuleSet -> ProblemState -> ProblemState
 applyRules !rules !ps = Arr.array (mn, mx) $ zip [mn..mx] $
 	fmap ((`fwd` rules) . bin2int) $
 	fmap (`getSurr` ps) [mn..mx]
 	where
-	fwd = Map.findWithDefault False
+	fwd = flip (Arr.!)
 	(mn, mx) = Arr.bounds ps
 
 sumElemWithPlant :: ProblemState -> Integer
