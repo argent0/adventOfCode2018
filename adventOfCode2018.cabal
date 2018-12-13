@@ -72,6 +72,7 @@ executable adventOfCode2018
 					   , regex-posix >= 0.95
 					   , regex >= 1.0
 					   , recursion-schemes >= 5.0.3
+					   , free >= 5.1
 
   -- Directories containing source files.
   hs-source-dirs:      src

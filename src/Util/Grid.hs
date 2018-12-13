@@ -1,4 +1,5 @@
 module Util.Grid (
+	Grid2d
 ) where
 
 import Control.Arrow
@@ -7,7 +8,7 @@ import Linear
 import qualified Data.Array.IArray as Arr
 
 -- A 2-d grid
---type Grid2d a = Arr.Array Integer (Arr.Array Integer a)
+type Grid2d i a = Arr.Array i (Arr.Array i a)
 --
 --gridWith :: Integer -> (V2 Integer -> a) -> Grid a
 --gridWith size f =
