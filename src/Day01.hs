@@ -25,8 +25,7 @@ solve_2 :: IO ()
 solve_2 = do
 	SysIO.withFile "inputs/day01" SysIO.ReadMode $ \input_fh ->
 		SysIO.hGetContents input_fh >>= \contents ->
-		(pure $ sums $ fmap parseInteger $ lines contents)
-		>>= print
+		print $ sums $ fmap parseInteger $ lines contents
 
 sums :: [Integer] -> Maybe Integer
 sums = go 0 (Set.singleton 0) . cycle
