@@ -9,6 +9,9 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Control.Monad
 
+import Data.Functor.Foldable
+import Control.Comonad.Cofree
+
 parseInteger :: String -> Integer
 parseInteger [] = error "parseInteger: Empty string"
 parseInteger ('+':s) = read s
@@ -36,6 +39,23 @@ sums = go 0 (Set.singleton 0) . cycle
 		in if next `Set.member` set
 			then (Just next)
 			else go next (next `Set.insert` set) ns
+
+-- What I want
+-- * Lazy
+-- * Non Custom recursion
+
+-- Is lazy
+-- Custom recursion
+partialSums1 :: [Integer] -> [Integer]
+partialSums1 = (0:) . go 0
+	where
+	go :: Integer -> [Integer] -> [Integer]
+	go acc [] = []
+	go acc (n:ns) = (acc+n):go (acc+n) ns
+
+-- The right function is scanl
+partialSums :: [Integer] -> [Integer]
+partialSums = scanl (+) 0
 
 l :: [Integer]
 l = [7,7,-2,-7,-4]
