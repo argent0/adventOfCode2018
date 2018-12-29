@@ -31,27 +31,13 @@ solve_2 = do
 		print $ sums $ fmap parseInteger $ lines contents
 
 sums :: [Integer] -> Maybe Integer
-sums = go 0 (Set.singleton 0) . cycle
+sums = go Set.empty . partialSums . cycle
 	where
-	go :: Integer -> Set Integer -> [Integer] -> Maybe Integer
-	go p set [] = Nothing
-	go p set (n:ns) = let next = n + p
-		in if next `Set.member` set
-			then (Just next)
-			else go next (next `Set.insert` set) ns
-
--- What I want
--- * Lazy
--- * Non Custom recursion
-
--- Is lazy
--- Custom recursion
-partialSums1 :: [Integer] -> [Integer]
-partialSums1 = (0:) . go 0
-	where
-	go :: Integer -> [Integer] -> [Integer]
-	go acc [] = []
-	go acc (n:ns) = (acc+n):go (acc+n) ns
+	go :: Set Integer -> [Integer] -> Maybe Integer
+	go _ [] = Nothing
+	go set (n:ns)
+		| n `Set.member` set = Just n
+		| otherwise = go (n `Set.insert` set) ns
 
 -- The right function is scanl
 partialSums :: [Integer] -> [Integer]
