@@ -97,7 +97,7 @@ sums l = getFirst $
 		(First $ if total_sum == 0 then Just 0 else Nothing) <>
 		-- There is a repetition in the infinite list of partial sums or there
 		-- isn't.
-		(First $ (((ps !!) . fst . fst) <$> ) $
+		(First $ fmap ((ps !!) . fst . fst) $
 			safeHead $
 			DL.sortBy comp $
 			filter ((>0) . snd) $ --Keep the ones that lay forward
