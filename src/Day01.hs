@@ -72,10 +72,20 @@ input = do
 	contents <- SysIO.hGetContents input_fh
 	pure $ fmap parseInteger $ lines $ contents
 
-
+-- Implementation based on the fact that `sh :: [a] -> First a` is a monoid
+-- homomorphism. (not considering _|_)
+--
+-- sh [] = First Nothing
+-- sh [a..] = First Just a
+-- sh [b..] = First Just b
+-- sh ([a..] ++ [b..]) = First Just a = First Just a <> First Just b
+--
+-- One this is known, we may find a function (f :: a -> First a) that we can use
+-- to generate the homomorphism for free.
+--
+-- Such function is: f = First . Just
 safeHead :: [a] -> Maybe a
-safeHead [] = Nothing
-safeHead (a:_) = Just a
+safeHead = getFirst . foldMap (First . Just)
 
 -- O(N^2)
 sums :: [Integer] -> Maybe Integer

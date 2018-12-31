@@ -82,5 +82,5 @@ executable adventOfCode2018
 
   -- Base language which the package is written in.
   default-language:    Haskell2010
-  ghc-options: -O2 -fno-warn-tabs -Wall
+  ghc-options: -O2 -Wall -fno-warn-tabs
 
