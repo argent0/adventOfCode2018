@@ -55,17 +55,15 @@ parseInteger ('-':s) = negate $ read s
 parseInteger s = error $ "Can't parse" ++ s
 
 solve_1 :: IO ()
-solve_1= do
-	SysIO.withFile "inputs/day01" SysIO.ReadMode $ \input_fh ->
-		SysIO.hGetContents input_fh >>= \contents ->
-		(pure $ (DL.foldl' (+) 0) $ fmap parseInteger $ lines contents)
-		>>= print
+solve_1= SysIO.withFile "inputs/day01" SysIO.ReadMode $ \input_fh ->
+	SysIO.hGetContents input_fh >>= \contents ->
+	(pure $ (DL.foldl' (+) 0) $ fmap parseInteger $ lines contents)
+	>>= print
 
 solve_2 :: IO ()
-solve_2 = do
-	SysIO.withFile "inputs/day01" SysIO.ReadMode $ \input_fh ->
-		SysIO.hGetContents input_fh >>= \contents ->
-		print $ sums $ fmap parseInteger $ lines contents
+solve_2 = SysIO.withFile "inputs/day01" SysIO.ReadMode $ \input_fh ->
+	SysIO.hGetContents input_fh >>= \contents ->
+	print $ sums $ fmap parseInteger $ lines contents
 
 -- The problem input as an IO effect
 input :: IO [Integer]
