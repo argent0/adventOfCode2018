@@ -27,7 +27,7 @@ that the repeated value is one element in `sums`. So we take `n_i = 0`.
 
 `n_j = -(ps_j - ps_i) div ps_N`. (4)
 
-Of all those `n_j` we want the smallest and the one with least `j`. Then the
+Of all those `n_j` we want the smallest and the one with the minimum `j`. Then the
 answer is `sums !! i`.
 -}
 
