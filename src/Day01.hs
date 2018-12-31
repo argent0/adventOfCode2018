@@ -1,3 +1,36 @@
+{-
+The key insight would be that
+
+Let `sums = [0, ps_1, ps_2, ..., ps_N]` be the partial sums of the input list.
+`ps_N` is the total sum. There is either:
+
+1. a repeated number in `sums`
+2. `ps_N == 0`. In which case 0 is the repeated value.
+3. There exists `i,j,n_i,n_j` such that `ps_i + n_i*ps_N = ps_j + n_j*ps_N`.
+4. None of the above and there is no repeating value
+
+If `3` is true then:
+
+`(n_i - n_j)*ps_N = ps_j - ps_i`. (1)
+
+This tell us that:
+
+`(ps_j - ps_i) % ps_N == 0`. (2)
+
+From all the pairs `(ps_j, ps_i)` we only need to consider those that satisfy
+(2). For those:
+
+`(n_i - n_j) = (ps_j - ps_i) div ps_N`. (3)
+
+As it can be seen there is only information to compute `(n_i - n_j)`. This means
+that the repeated value is one element in `sums`. So we take `n_i = 0`.
+
+`n_j = -(ps_j - ps_i) div ps_N`. (4)
+
+Of all those `n_j` we want the smallest and the one with least `j`. Then the
+answer is `sums !! i`.
+-}
+
 module Day01
 	( solve_1
 	, solve_2
@@ -41,15 +74,6 @@ input = do
 	contents <- SysIO.hGetContents input_fh
 	pure $ fmap parseInteger $ lines $ contents
 
--- Original version
---sums :: [Integer] -> Maybe Integer
---sums = go Set.empty . partialSums . cycle
---	where
---	go :: Set Integer -> [Integer] -> Maybe Integer
---	go _ [] = Nothing
---	go set (n:ns)
---		| n `Set.member` set = Just n
---		| otherwise = go (n `Set.insert` set) ns
 
 safeHead :: [a] -> Maybe a
 safeHead [] = Nothing
@@ -63,13 +87,13 @@ sums l = getFirst $
 		(First $ firstDuplicate ps) <>
 		--The total sum is 0 making this also the first repeated value
 		(First $ if total_sum == 0 then Just 0 else Nothing) <>
-		-- There is a repetition in the infine list of partial sums or there
+		-- There is a repetition in the infinite list of partial sums or there
 		-- isn't.
 		(First $ (((ps !!) . fst . fst) <$> ) $
 			safeHead $
 			DL.sortBy comp $
-			filter ((>0) . snd) $
-			fmap (second (negate . (`div` total_sum))) $
+			filter ((>0) . snd) $ --Keep the ones that lay forward
+			fmap (second (negate . (`div` total_sum))) $ --Compute the `n_j`
 			fmap (\((i,psi),(j,psj)) -> ((i,j), psj - psi)) $ candidate_pairs
 		)
 	where
@@ -88,7 +112,7 @@ sums l = getFirst $
 -- Find the first duplicate in a list
 -- It works for infinite lists with duplicates. E.g. 10:[1..]
 -- It works for finite lists without duplicates
--- Requieres an Ord constrain
+-- Requires an Ord constrain
 -- O(N*logN)
 
 firstDuplicate :: Ord a => [a] -> Maybe a
@@ -117,6 +141,16 @@ firstDuplicate l = ST.evalState ((getFirst . foldMap First) <$> traverse tr l) S
 -- 		| n `Set.member` set = Just n
 -- 		| otherwise = go (n `Set.insert` set) ns
 
+-- Original version
+--sums :: [Integer] -> Maybe Integer
+--sums = go Set.empty . partialSums . cycle
+--	where
+--	go :: Set Integer -> [Integer] -> Maybe Integer
+--	go _ [] = Nothing
+--	go set (n:ns)
+--		| n `Set.member` set = Just n
+--		| otherwise = go (n `Set.insert` set) ns
+
 -- Calculate the partial sums of a list of Integers starting with 0
 partialSums :: [Integer] -> [Integer]
 partialSums = scanl (+) 0
@@ -126,29 +160,3 @@ partialSums = scanl (+) 0
 -- test2 = [3,3,4,-2,-4]
 -- test3 = [-6,3,8,5,-6]
 -- test4 = [7,7,-2,-7,-4]
-
-{-
- - [1,-2,3] sum = 2, sums = [0,1,-1,2]
- - 1+n1*s = -1+n2*s (equal if n2=0 and n2=1)
- - (n1-n2)*s = -1 - 1
- - (n1-n2)*s = -2
- - -1 * 2 = -2 - 1
- - `s` is a factor of the difference of the two first round sums, there are O(N^2)
- - such differences. N*(N-1)
- -
- - 0+n0*s = 1+n1*s
- -
- - Some Ideas
- -
- - let sums = [0, ps_1, ps_2, ..., ps_N] be the partial sums of the list
- - There is either:
- -
- - * a repeated numner in sums
- - * ps_i+n_1*ps_N = ps_j+n_2*ps_N
- -
- - (n1_1 - n_2)*ps_N = ps_j - ps_i
- -
- - This tell us that (ps_j - ps_i) % ps_N == 0
- -
- -
--}
