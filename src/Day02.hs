@@ -20,9 +20,25 @@ xor True False = True
 xor False True = True
 xor _ _ = False
 
+-- Count the number of repetitions each element has
 -- O(n*log n)
 count :: Ord a => [a] -> Map a Integer
 count = Map.fromListWith (+) . (flip zip) (repeat 1)
+
+-- O(N^2) using only an `Eq` constraint
+-- Alternative for unfolder:
+-- 	unfolder (a:as) =
+-- 		let (al,nas) = DL.partition (==a) as in
+-- 			Just ((a, 1 + DL.genericLength al), nas)
+count' :: Eq a => [a] -> [(a, Integer)]
+count' = DL.unfoldr unfolder
+	where
+	unfolder [] = Nothing
+	unfolder (a:as) = Just $ DL.foldl' folder ((a, 1), []) as
+	-- Computes the length and partitions in one pass
+	folder ((a, n), nas) e
+		| e == a = ((a, n + 1), nas)
+		| otherwise = ((a, n), e:nas)
 
 -- O(N*log n)
 -- where N is the length of the input list
