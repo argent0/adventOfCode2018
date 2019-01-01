@@ -1,4 +1,10 @@
-{-# Language ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Day02
 	( solve_1
 	, solve_2
@@ -14,6 +20,10 @@ import qualified Data.Map.Strict as Map
 import Debug.Trace
 import Data.Function (on)
 import Data.Maybe (catMaybes)
+import qualified Data.Foldable as DF
+import Debug.Trace
+import Data.Functor.Foldable
+import Data.Functor.Foldable.TH
 
 xor :: Bool -> Bool -> Bool
 xor True False = True
@@ -40,6 +50,66 @@ count' = DL.unfoldr unfolder
 		| e == a = ((a, n + 1), nas)
 		| otherwise = ((a, n), e:nas)
 
+data Elem2 = Elem2None | Elem2OnlyFirst | Elem2OnlySecond | Elem2Both deriving (Show, Eq)
+
+instance Semigroup Elem2 where
+	Elem2Both <> _ = Elem2Both
+	_ <> Elem2Both = Elem2Both
+	Elem2None <> b = b
+	a <> Elem2None = a
+	Elem2OnlyFirst <> Elem2OnlyFirst = Elem2OnlyFirst
+	Elem2OnlySecond <> Elem2OnlySecond = Elem2OnlySecond
+	Elem2OnlyFirst <> Elem2OnlySecond = Elem2Both
+	Elem2OnlySecond <> Elem2OnlyFirst = Elem2Both
+
+instance Monoid Elem2 where
+	mempty = Elem2None
+
+elem2 :: (Show a, Foldable t, Eq a) => a -> a -> t a -> Elem2
+elem2 a b = DF.foldMap (folder' a b)
+	where
+	folder' a b e
+		| e == a = Elem2OnlyFirst
+		| e == b = Elem2OnlySecond
+		| otherwise = Elem2None
+
+-- Lazy version
+elem2' :: Eq a => a -> a -> [a] -> Elem2
+elem2' a b = go Elem2None
+	where
+	go acc [] = acc
+	go Elem2Both _ = Elem2Both  --Early stop
+	go acc (e:es)
+		| e == a = go (acc <> Elem2OnlyFirst) es
+		| e == b = go (acc <> Elem2OnlySecond) es
+		| otherwise = go (acc <> Elem2None) es
+
+data FindTwo = StillLooking FindTwo | FoundFirst Bool | FoundSecond Bool | FoundNone deriving Show
+
+makeBaseFunctor ''FindTwo
+
+elem2'' :: forall a. Eq a => a -> a -> [a] -> FindTwo
+elem2'' a b = ana coAlg
+	where
+	coAlg :: [a] -> FindTwoF [a]
+	coAlg [] = FoundNoneF
+	coAlg (e:es)
+		| e == a = FoundFirstF $ b `elem` es
+		| e == b = FoundSecondF $ a `elem` es
+		| otherwise = StillLookingF es
+
+data Find2 = Find2None | Find2First Bool | Find2Second Bool deriving Show
+
+elem2'v :: forall a. Eq a => a -> a -> [a] -> [Find2]
+elem2'v a b = DL.unfoldr coAlg
+	where
+	coAlg :: [a] -> Maybe (Find2, [a])
+	coAlg [] = Nothing
+	coAlg (e:es)
+		| e == a = Just (Find2First $ b `elem` es, [])
+		| e == b = Just (Find2Second $ a `elem` es, [])
+		| otherwise = Just (Find2None, es)
+
 -- O(N*log n)
 -- where N is the length of the input list
 -- where n is the length of the strings inside the input list
@@ -47,9 +117,11 @@ checksum :: [String] -> Integer
 checksum = uncurry (*) . DL.foldl' folder (0,0) . fmap count
 	where
 	folder :: (Integer, Integer) -> Map Char Integer -> (Integer, Integer)
-	folder (p,t) counts =
-		(if 2 `elem` counts then p + 1 else p,
-		if 3 `elem` counts then t + 1 else t)
+	folder (p,t) counts = case elem2' 2 3 (Map.elems counts) of
+		Elem2None -> (p, t)
+		Elem2OnlyFirst -> (p + 1, t)
+		Elem2OnlySecond -> (p, t + 1)
+		Elem2Both -> (p + 1, t + 1)
 
 solve_1 :: IO ()
 solve_1= do
