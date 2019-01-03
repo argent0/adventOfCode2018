@@ -47,6 +47,7 @@ import Control.Monad.State.Lazy (State)
 import qualified Control.Monad.State.Lazy as ST
 import Data.Monoid
 import Data.Bool (bool)
+import Control.Applicative
 
 parseInteger :: String -> Integer
 parseInteger [] = error "parseInteger: Empty string"
@@ -90,14 +91,14 @@ safeHead = getFirst . foldMap (First . Just)
 -- O(N^2)
 sums :: [Integer] -> Maybe Integer
 sums [] = Nothing
-sums l = getFirst $
+sums l = --getFirst $
 		-- There is a duplicated value in the list of partial sums
-		(First $ firstDuplicate ps) <>
+		firstDuplicate ps <|>
 		--The total sum is 0 making this also the first repeated value
-		(First $ if total_sum == 0 then Just 0 else Nothing) <>
+		(if total_sum == 0 then Just 0 else Nothing) <|>
 		-- There is a repetition in the infinite list of partial sums or there
 		-- isn't.
-		(First $ fmap ((ps !!) . fst . fst) $
+		(fmap ((ps !!) . fst . fst) $
 			safeHead $
 			DL.sortBy comp $
 			filter ((>0) . snd) $ --Keep the ones that lay forward

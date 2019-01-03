@@ -127,7 +127,7 @@ diffOneLetter :: String -> String -> Bool
 diffOneLetter [] [] = False
 diffOneLetter (a:as) (b:bs)
 	| a /= b = as == bs
-    | a == b = diffOneLetter as bs
+	| a == b = diffOneLetter as bs
 
 part :: [String] -> [(String, [String])]
 part as = go [] as
