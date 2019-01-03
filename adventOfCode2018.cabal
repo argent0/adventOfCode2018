@@ -59,7 +59,7 @@ executable adventOfCode2018
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.11 && <4.12
+  build-depends:       base >=4.12
                        , containers >= 0.6 && < 0.7
 					   , linear >= 1.20 && < 2
 					   , lens >= 4.17 && < 5

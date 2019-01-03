@@ -25,6 +25,10 @@ import Debug.Trace
 import Data.Functor.Foldable
 import Data.Functor.Foldable.TH
 
+import Control.Monad.Free
+import Data.Functor.Identity
+import qualified Control.Monad.Trans.Free as CMTF
+
 xor :: Bool -> Bool -> Bool
 xor True False = True
 xor False True = True
@@ -100,7 +104,7 @@ elem2'' a b = ana coAlg
 
 data Find2 = Find2None | Find2First Bool | Find2Second Bool deriving Show
 
-elem2'v :: forall a. Eq a => a -> a -> [a] -> [Find2]
+elem2'v :: forall a t. Eq a => a -> a -> [a] -> [Find2]
 elem2'v a b = DL.unfoldr coAlg
 	where
 	coAlg :: [a] -> Maybe (Find2, [a])
@@ -109,6 +113,71 @@ elem2'v a b = DL.unfoldr coAlg
 		| e == a = Just (Find2First $ b `elem` es, [])
 		| e == b = Just (Find2Second $ a `elem` es, [])
 		| otherwise = Just (Find2None, es)
+
+-- 00:00 < argent0> hi, is this isomorphic to something more popular? data Rec a
+-- = Rec (Rec a) | Done a deriving Show
+-- 00:01 < Solonarv> It's isomorphic to Free Identity
+-- 00:02 < argent0> Solonarv: thanks I'll check that out
+-- 00:02 < Solonarv> argent0: Free is in free:Control.Monad.Free, Identity is in
+-- base:Data.Functor.Identity
+-- 00:03 < c_wraith> it's also Fix Maybe
+-- 00:04 < c_wraith> err, no. it's Fix (Either a)
+-- 00:04 < c_wraith> or if you want to be particularly smart-ass about it, (Nat,
+-- a)
+-- 00:05 < Solonarv> more generally, Free f a ~ Fix (Either a `Compose` f)
+-- 00:05 < c_wraith> hmm. good point.
+-- 00:06 < Solonarv> ( similarly, Cofree f a ~ Fix ((,) a `Compose` f) )
+-- 00:07 < c_wraith> do backticks work in types? I can't say as I've ever tried.
+-- 00:07 < Solonarv> They do, you might need -XTypeOperators though – I don't
+-- remember
+-- 00:08 < Solonarv> % :k Int `Either` Char
+-- 00:08 < yahb> Solonarv: Int `Either` Char :: *
+-- 00:09 < puffnfresh> Free Identity is also known as the "Partiality Monad"
+-- 00:09 < puffnfresh> argent0: you're recreating Partiality exactly :)
+-- 00:09 < Solonarv> which one is that?
+-- 00:10 < argent0> c_wraith: puffnfresh: I'll check those too
+-- 00:10 < c_wraith> I have a result! | I need to think more.
+-- 00:11 < c_wraith> it's a very direct way to encode partiality into a total
+-- language that supports codata
+-- 00:11 < Solonarv> Oh, I see!
+-- 00:12 < c_wraith> sometimes you even want it in Haskell. it's a pure way to
+-- produce progress reports from a computation, for instance.
+-- 00:14 < c_wraith> so long as you don't mind the computation only running when
+-- you ask for the next progress report.
+-- 00:14 < Solonarv> Seems like it'd be quite useful as a monad transformer
+-- 00:14 < c_wraith> (deepseq it with par to get it to run in the background!)
+data Rec a = Rec (Rec a) | Done a deriving Show
+makeBaseFunctor ''Rec
+
+-- data Free f a = Pure a | Free (f (Free f a))
+type Rec' a = Free Identity a
+
+elem2v :: forall a t. (Eq a, Foldable t) => a -> a -> t a -> Rec (Bool, Bool)
+elem2v a b = ana coAlg . DF.toList
+	where
+	coAlg [] = DoneF (False, False)
+	coAlg (e:es)
+		| e == a = DoneF (True, b `elem` es)
+		| e == b = DoneF (a `elem` es, True)
+		| otherwise = RecF es
+
+elem2vi :: forall a t. (Eq a, Foldable t) => a -> a -> t a -> (Bool, Bool)
+elem2vi a b = runIdentity . retract . ana coAlg . DF.toList
+	where
+	coAlg [] = CMTF.Pure (False, False)
+	coAlg (e:es)
+		| e == a = CMTF.Pure (True, b `elem` es)
+		| e == b = CMTF.Pure (a `elem` es, True)
+		| otherwise = CMTF.Free (Identity es)
+
+elem2vii :: forall a t. (Eq a, Foldable t) => a -> a -> t a -> Fix (Either (Bool, Bool))
+elem2vii a b = ana coAlg . DF.toList
+	where
+	coAlg [] = Left (False, False)
+	coAlg (e:es)
+		| e == a = Left (True, b `elem` es)
+		| e == b = Left (a `elem` es, True)
+		| otherwise = Right es
 
 -- O(N*log n)
 -- where N is the length of the input list
