@@ -1,5 +1,4 @@
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveFoldable #-}
@@ -12,27 +11,17 @@ module Day02
 
 import qualified System.IO as SysIO
 import qualified Data.List as DL
-import Data.Set (Set)
-import qualified Data.Set as Set
-import Control.Monad
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Debug.Trace
 import Data.Function (on)
-import Data.Maybe (catMaybes)
 import qualified Data.Foldable as DF
-import Debug.Trace
-import Data.Functor.Foldable
-import Data.Functor.Foldable.TH
+import Data.Functor.Foldable (ana)
 
-import Control.Monad.Free
-import Data.Functor.Identity
+import Control.Monad.Free (retract)
+import Data.Functor.Identity (runIdentity, Identity(..))
 import qualified Control.Monad.Trans.Free as CMTF
-
-xor :: Bool -> Bool -> Bool
-xor True False = True
-xor False True = True
-xor _ _ = False
+import Control.Arrow ((***))
+import Data.Bool (bool)
 
 -- Count the number of repetitions each element has
 -- O(n*log n)
@@ -54,66 +43,8 @@ count' = DL.unfoldr unfolder
 		| e == a = ((a, n + 1), nas)
 		| otherwise = ((a, n), e:nas)
 
-data Elem2 = Elem2None | Elem2OnlyFirst | Elem2OnlySecond | Elem2Both deriving (Show, Eq)
-
-instance Semigroup Elem2 where
-	Elem2Both <> _ = Elem2Both
-	_ <> Elem2Both = Elem2Both
-	Elem2None <> b = b
-	a <> Elem2None = a
-	Elem2OnlyFirst <> Elem2OnlyFirst = Elem2OnlyFirst
-	Elem2OnlySecond <> Elem2OnlySecond = Elem2OnlySecond
-	Elem2OnlyFirst <> Elem2OnlySecond = Elem2Both
-	Elem2OnlySecond <> Elem2OnlyFirst = Elem2Both
-
-instance Monoid Elem2 where
-	mempty = Elem2None
-
-elem2 :: (Show a, Foldable t, Eq a) => a -> a -> t a -> Elem2
-elem2 a b = DF.foldMap (folder' a b)
-	where
-	folder' a b e
-		| e == a = Elem2OnlyFirst
-		| e == b = Elem2OnlySecond
-		| otherwise = Elem2None
-
--- Lazy version
-elem2' :: Eq a => a -> a -> [a] -> Elem2
-elem2' a b = go Elem2None
-	where
-	go acc [] = acc
-	go Elem2Both _ = Elem2Both  --Early stop
-	go acc (e:es)
-		| e == a = go (acc <> Elem2OnlyFirst) es
-		| e == b = go (acc <> Elem2OnlySecond) es
-		| otherwise = go (acc <> Elem2None) es
-
-data FindTwo = StillLooking FindTwo | FoundFirst Bool | FoundSecond Bool | FoundNone deriving Show
-
-makeBaseFunctor ''FindTwo
-
-elem2'' :: forall a. Eq a => a -> a -> [a] -> FindTwo
-elem2'' a b = ana coAlg
-	where
-	coAlg :: [a] -> FindTwoF [a]
-	coAlg [] = FoundNoneF
-	coAlg (e:es)
-		| e == a = FoundFirstF $ b `elem` es
-		| e == b = FoundSecondF $ a `elem` es
-		| otherwise = StillLookingF es
-
-data Find2 = Find2None | Find2First Bool | Find2Second Bool deriving Show
-
-elem2'v :: forall a t. Eq a => a -> a -> [a] -> [Find2]
-elem2'v a b = DL.unfoldr coAlg
-	where
-	coAlg :: [a] -> Maybe (Find2, [a])
-	coAlg [] = Nothing
-	coAlg (e:es)
-		| e == a = Just (Find2First $ b `elem` es, [])
-		| e == b = Just (Find2Second $ a `elem` es, [])
-		| otherwise = Just (Find2None, es)
-
+-- data Rec a = Rec (Rec a) | Done a deriving Show
+--
 -- 00:00 < argent0> hi, is this isomorphic to something more popular? data Rec a
 -- = Rec (Rec a) | Done a deriving Show
 -- 00:01 < Solonarv> It's isomorphic to Free Identity
@@ -146,38 +77,15 @@ elem2'v a b = DL.unfoldr coAlg
 -- you ask for the next progress report.
 -- 00:14 < Solonarv> Seems like it'd be quite useful as a monad transformer
 -- 00:14 < c_wraith> (deepseq it with par to get it to run in the background!)
-data Rec a = Rec (Rec a) | Done a deriving Show
-makeBaseFunctor ''Rec
 
--- data Free f a = Pure a | Free (f (Free f a))
-type Rec' a = Free Identity a
-
-elem2v :: forall a t. (Eq a, Foldable t) => a -> a -> t a -> Rec (Bool, Bool)
-elem2v a b = ana coAlg . DF.toList
-	where
-	coAlg [] = DoneF (False, False)
-	coAlg (e:es)
-		| e == a = DoneF (True, b `elem` es)
-		| e == b = DoneF (a `elem` es, True)
-		| otherwise = RecF es
-
-elem2vi :: forall a t. (Eq a, Foldable t) => a -> a -> t a -> (Bool, Bool)
-elem2vi a b = runIdentity . retract . ana coAlg . DF.toList
+elem2 :: forall a t. (Eq a, Foldable t) => a -> a -> t a -> (Bool, Bool)
+elem2 a b = runIdentity . retract . ana coAlg . DF.toList
 	where
 	coAlg [] = CMTF.Pure (False, False)
 	coAlg (e:es)
 		| e == a = CMTF.Pure (True, b `elem` es)
 		| e == b = CMTF.Pure (a `elem` es, True)
 		| otherwise = CMTF.Free (Identity es)
-
-elem2vii :: forall a t. (Eq a, Foldable t) => a -> a -> t a -> Fix (Either (Bool, Bool))
-elem2vii a b = ana coAlg . DF.toList
-	where
-	coAlg [] = Left (False, False)
-	coAlg (e:es)
-		| e == a = Left (True, b `elem` es)
-		| e == b = Left (a `elem` es, True)
-		| otherwise = Right es
 
 -- O(N*log n)
 -- where N is the length of the input list
@@ -186,11 +94,11 @@ checksum :: [String] -> Integer
 checksum = uncurry (*) . DL.foldl' folder (0,0) . fmap count
 	where
 	folder :: (Integer, Integer) -> Map Char Integer -> (Integer, Integer)
-	folder (p,t) counts = case elem2' 2 3 (Map.elems counts) of
-		Elem2None -> (p, t)
-		Elem2OnlyFirst -> (p + 1, t)
-		Elem2OnlySecond -> (p, t + 1)
-		Elem2Both -> (p + 1, t + 1)
+	folder (p, t) counts = (+p) *** (+t) $ (bool 0 1) *** (bool 0 1) $ elem2 2 3 counts
+	--(False, False) -> (p, t)
+	--(True, False) -> (p + 1, t)
+	--(False, True) -> (p, t + 1)
+	--(True, True) -> (p + 1, t + 1)
 
 solve_1 :: IO ()
 solve_1= do
