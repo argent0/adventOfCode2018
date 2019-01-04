@@ -4,6 +4,8 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 module Day02
 	( solve_1
 	, solve_2
@@ -15,8 +17,8 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Function (on)
 import qualified Data.Foldable as DF
-import Data.Functor.Foldable (ana)
 
+import Data.Functor.Foldable (ana)
 import Control.Monad.Free (retract)
 import Data.Functor.Identity (runIdentity, Identity(..))
 import qualified Control.Monad.Trans.Free as CMTF
@@ -122,13 +124,29 @@ solve_1= do
 
 -- Part 2
 
--- | True if argument strings differ by one letter
+-- | True if argument strings differ by one letter.
+--
+-- It is lazy on both strings
+-- >>> diffOneLetter ['a','b',undefined] ['x','y',undefined]
+-- False
+-- >>> diffOneLetter "fghij" "fguij"
+-- True
+-- >>> diffOneLetter "abc" "acb"
+-- False
 diffOneLetter :: String -> String -> Bool
-diffOneLetter [] [] = False
-diffOneLetter (a:as) (b:bs)
-	| a /= b = as == bs
-	| a == b = diffOneLetter as bs
+diffOneLetter a = runIdentity . retract . ana coAlg . zipWith (/=) a
+	where
+	coAlg [] = CMTF.Pure False
+	coAlg (n:ns)
+		-- Found one difference, so all ns should be false
+		| n = CMTF.Pure (and (fmap not ns))
+		| otherwise = CMTF.Free (Identity ns)
 
+-- | Given a list of strings pair each one with the sublist of strings that
+-- differ by one letter.
+--
+-- >>> part ["abc","abd","xyz"]
+-- [("xyz",[]),("abd",["abc"]),("abc",["abd"])]
 part :: [String] -> [(String, [String])]
 part as = go [] as
 	where
