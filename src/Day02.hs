@@ -78,6 +78,20 @@ count' = DL.unfoldr unfolder
 -- 00:14 < Solonarv> Seems like it'd be quite useful as a monad transformer
 -- 00:14 < c_wraith> (deepseq it with par to get it to run in the background!)
 
+-- | Predicate that checks if two elements are in t.
+--
+-- retract :: Free f a -> f a
+-- data Free f a = Pure a | Free (f (Free f a))
+-- data Rec a = Done a | Rec (Rec a)
+--
+-- Rec is isomorphic to Free Identity
+--
+-- >>> elem2 1 2 [1,2,undefined]
+-- (True,True)
+-- >>> elem2 1 2 [2,3]
+-- (False,True)
+-- >>> elem2 1 2 [1,3]
+-- (True,False)
 elem2 :: forall a t. (Eq a, Foldable t) => a -> a -> t a -> (Bool, Bool)
 elem2 a b = runIdentity . retract . ana coAlg . DF.toList
 	where
@@ -106,6 +120,32 @@ solve_1= do
 		(lines <$> SysIO.hGetContents input_fh) >>= \file_lines ->
 		print $ checksum file_lines
 
+-- Part 2
+
+-- | True if argument strings differ by one letter
+diffOneLetter :: String -> String -> Bool
+diffOneLetter [] [] = False
+diffOneLetter (a:as) (b:bs)
+	| a /= b = as == bs
+	| a == b = diffOneLetter as bs
+
+part :: [String] -> [(String, [String])]
+part as = go [] as
+	where
+	go :: [(String, [String])] -> [String] -> [(String, [String])]
+	go acc [] = acc
+	go acc (b:bs) =
+		let (g,ng) = DL.partition (diffOneLetter b) as in
+			go ((b,g):acc) bs
+
+-- | Solve part 2 by comparing all strings
+solve_2bf :: IO ()
+solve_2bf = do
+	SysIO.withFile "inputs/day02" SysIO.ReadMode $ \input_fh ->
+		(lines <$> SysIO.hGetContents input_fh) >>= \file_lines ->
+		print $
+			filter (not . null. snd) $ part $ file_lines
+
 data RoseTree a = RoseTree a [Maybe (RoseTree a)] deriving (Show, Eq, Ord)
 
 data ReducedRoseTree a =
@@ -123,20 +163,7 @@ build l = --trace ("\n>>rec>>" ++ show l) $
 		(fmap (const Nothing) $ filter null $ as:(fmap tail ass))
 		 ++ (fmap pure $ build $ filter (not . null) $ as:(fmap tail ass))
 
-diffOneLetter :: String -> String -> Bool
-diffOneLetter [] [] = False
-diffOneLetter (a:as) (b:bs)
-	| a /= b = as == bs
-	| a == b = diffOneLetter as bs
 
-part :: [String] -> [(String, [String])]
-part as = go [] as
-	where
-	go :: [(String, [String])] -> [String] -> [(String, [String])]
-	go acc [] = acc
-	go acc (b:bs) =
-		let (g,ng) = DL.partition (diffOneLetter b) as in
-			go ((b,g):acc) bs
 
 sing :: [a] -> Bool
 sing [a] = True
