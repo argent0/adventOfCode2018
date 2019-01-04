@@ -64,7 +64,7 @@ solve_1= SysIO.withFile "inputs/day01" SysIO.ReadMode $ \input_fh ->
 solve_2 :: IO ()
 solve_2 = SysIO.withFile "inputs/day01" SysIO.ReadMode $ \input_fh ->
 	SysIO.hGetContents input_fh >>= \contents ->
-	print $ sums $ fmap parseInteger $ lines contents
+	print $ part2 $ fmap parseInteger $ lines contents
 
 -- The problem input as an IO effect
 input :: IO [Integer]
@@ -89,9 +89,9 @@ safeHead :: [a] -> Maybe a
 safeHead = getFirst . foldMap (First . Just)
 
 -- O(N^2)
-sums :: [Integer] -> Maybe Integer
-sums [] = Nothing
-sums l = --getFirst $
+part2 :: [Integer] -> Maybe Integer
+part2 [] = Nothing
+part2 l = --getFirst $
 		-- There is a duplicated value in the list of partial sums
 		firstDuplicate ps <|>
 		--The total sum is 0 making this also the first repeated value
@@ -161,7 +161,7 @@ firstDuplicate l = ST.evalState ((getFirst . foldMap First) <$> traverse tr l) S
 --		| otherwise = go (n `Set.insert` set) ns
 
 -- Calculate the partial sums of a list of Integers starting with 0
-partialSums :: [Integer] -> [Integer]
+partialSums :: Num a => [a] -> [a]
 partialSums = scanl (+) 0
 
 -- test1, test2, test3, test4 :: [Integer]
