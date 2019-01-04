@@ -25,6 +25,9 @@ import qualified Control.Monad.Trans.Free as CMTF
 import Control.Arrow ((***))
 import Data.Bool (bool)
 
+import Data.Maybe
+import Control.Applicative
+
 -- Count the number of repetitions each element has
 -- O(n*log n)
 count :: Ord a => [a] -> Map a Integer
@@ -133,14 +136,30 @@ solve_1= do
 -- True
 -- >>> diffOne "abc" "acb"
 -- False
-diffOne :: Eq a => [a] -> [a] -> Bool
-diffOne a = runIdentity . retract . ana coAlg . zipWith (/=) a
+--
+-- Different lengths don't have diffOne
+-- >>> diffOne "abc" "abdx"
+-- False
+diffOne :: forall a t t'. (Foldable t, Foldable t', Eq a) => t a -> t' a -> Bool
+diffOne a b = runIdentity . retract . ana coAlg $ zip (extend $ DF.toList a) (extend $ DF.toList b)
 	where
-	coAlg [] = CMTF.Pure False
-	coAlg (n:ns)
-		-- Found one difference, so all ns should be false
-		| n = CMTF.Pure (and (fmap not ns))
-		| otherwise = CMTF.Free (Identity ns)
+	coAlg ((Nothing,_):_) = CMTF.Pure False
+	coAlg ((_, Nothing):_) = CMTF.Pure False
+	coAlg ((Just e, Just ee):ps)
+		| e /= ee = CMTF.Pure $ and $ catMaybes $ takeWhile isJust $ fmap (uncurry meq) ps
+		| otherwise = CMTF.Free (Identity ps)
+	-- Make the lists infinite by transforming them to Justs and appending
+	-- Nothings to the end
+	extend :: [a] -> [Maybe a]
+	extend = DL.unfoldr extendr
+	extendr [] = Just (Nothing, [])
+	extendr (a:as) = Just $ (Just a, as)
+	-- Compare as long as there is something to compare
+	meq :: Maybe a -> Maybe a -> Maybe Bool
+	meq Nothing Nothing = Nothing
+	meq Nothing (Just _) = Just False
+	meq (Just _) Nothing = Just False
+	meq (Just a) (Just b) = Just (a==b)
 
 -- | Given a list of strings pair each one with the sublist of strings that
 -- differ by one letter.
