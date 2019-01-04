@@ -127,14 +127,14 @@ solve_1= do
 -- | True if argument strings differ by one letter.
 --
 -- It is lazy on both strings
--- >>> diffOneLetter ['a','b',undefined] ['x','y',undefined]
+-- >>> diffOne ['a','b',undefined] ['x','y',undefined]
 -- False
--- >>> diffOneLetter "fghij" "fguij"
+-- >>> diffOne "fghij" "fguij"
 -- True
--- >>> diffOneLetter "abc" "acb"
+-- >>> diffOne "abc" "acb"
 -- False
-diffOneLetter :: String -> String -> Bool
-diffOneLetter a = runIdentity . retract . ana coAlg . zipWith (/=) a
+diffOne :: Eq a => [a] -> [a] -> Bool
+diffOne a = runIdentity . retract . ana coAlg . zipWith (/=) a
 	where
 	coAlg [] = CMTF.Pure False
 	coAlg (n:ns)
@@ -153,7 +153,7 @@ part as = go [] as
 	go :: [(String, [String])] -> [String] -> [(String, [String])]
 	go acc [] = acc
 	go acc (b:bs) =
-		let (g,ng) = DL.partition (diffOneLetter b) as in
+		let (g,ng) = DL.partition (diffOne b) as in
 			go ((b,g):acc) bs
 
 -- | Solve part 2 by comparing all strings
