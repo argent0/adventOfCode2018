@@ -6,6 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Day02
 	( solve_1
 	, solve_2
@@ -18,7 +19,8 @@ import qualified Data.Map.Strict as Map
 import Data.Function (on)
 import qualified Data.Foldable as DF
 
-import Data.Functor.Foldable (ana)
+import Data.Functor.Foldable --(ana)
+import Data.Functor.Foldable.TH
 import Control.Monad.Free (retract)
 import Data.Functor.Identity (runIdentity, Identity(..))
 import qualified Control.Monad.Trans.Free as CMTF
@@ -27,6 +29,7 @@ import Data.Bool (bool)
 
 import Data.Maybe
 import Control.Applicative
+import Debug.Trace
 
 -- Count the number of repetitions each element has
 -- O(n*log n)
@@ -150,6 +153,7 @@ diffOne a b = runIdentity . retract . ana coAlg $ zip (extend $ DF.toList a) (ex
 		| otherwise = CMTF.Free (Identity ps)
 	-- Make the lists infinite by transforming them to Justs and appending
 	-- Nothings to the end
+	-- extend [1,2] = [Just 1, Just 2, Nothing, Nothing, ...]
 	extend :: [a] -> [Maybe a]
 	extend = DL.unfoldr extendr
 	extendr [] = Just (Nothing, [])
@@ -164,16 +168,16 @@ diffOne a b = runIdentity . retract . ana coAlg $ zip (extend $ DF.toList a) (ex
 -- | Given a list of strings pair each one with the sublist of strings that
 -- differ by one letter.
 --
--- >>> part ["abc","abd","xyz"]
--- [("xyz",[]),("abd",["abc"]),("abc",["abd"])]
-part :: [String] -> [(String, [String])]
-part as = go [] as
+-- >>> part' ["abc","abd","xyz"]
+-- [("abc",["abd"]),("abd",["abc"]),("xyz",[])]
+part :: forall a . Eq a => [[a]] -> [([a], [[a]])]
+part as = DL.unfoldr coAlg as
 	where
-	go :: [(String, [String])] -> [String] -> [(String, [String])]
-	go acc [] = acc
-	go acc (b:bs) =
+	coAlg :: [[a]] -> Maybe ( ([a], [[a]]), [[a]] )
+	coAlg [] = Nothing
+	coAlg (b:bs) =
 		let (g,ng) = DL.partition (diffOne b) as in
-			go ((b,g):acc) bs
+		Just $ ( (b,g) , bs )
 
 -- | Solve part 2 by comparing all strings
 solve_2bf :: IO ()
