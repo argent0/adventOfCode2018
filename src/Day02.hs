@@ -16,11 +16,8 @@ import qualified System.IO as SysIO
 import qualified Data.List as DL
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Function (on)
 import qualified Data.Foldable as DF
-
-import Data.Functor.Foldable --(ana)
-import Data.Functor.Foldable.TH
+import Data.Functor.Foldable (ana)
 import Control.Monad.Free (retract)
 import Data.Functor.Identity (runIdentity, Identity(..))
 import qualified Control.Monad.Trans.Free as CMTF
@@ -28,8 +25,6 @@ import Control.Arrow ((***))
 import Data.Bool (bool)
 
 import Data.Maybe
-import Control.Applicative
-import Debug.Trace
 
 -- Count the number of repetitions each element has
 -- O(n*log n)
@@ -146,6 +141,7 @@ solve_1= do
 diffOne :: forall a t t'. (Foldable t, Foldable t', Eq a) => t a -> t' a -> Bool
 diffOne a b = runIdentity . retract . ana coAlg $ zip (extend $ DF.toList a) (extend $ DF.toList b)
 	where
+	coAlg [] = error "extendr didn't create an infinite list."
 	coAlg ((Nothing,_):_) = CMTF.Pure False
 	coAlg ((_, Nothing):_) = CMTF.Pure False
 	coAlg ((Just e, Just ee):ps)
@@ -157,13 +153,13 @@ diffOne a b = runIdentity . retract . ana coAlg $ zip (extend $ DF.toList a) (ex
 	extend :: [a] -> [Maybe a]
 	extend = DL.unfoldr extendr
 	extendr [] = Just (Nothing, [])
-	extendr (a:as) = Just $ (Just a, as)
+	extendr (x:xs) = Just $ (Just x, xs)
 	-- Compare as long as there is something to compare
 	meq :: Maybe a -> Maybe a -> Maybe Bool
 	meq Nothing Nothing = Nothing
 	meq Nothing (Just _) = Just False
 	meq (Just _) Nothing = Just False
-	meq (Just a) (Just b) = Just (a==b)
+	meq (Just x) (Just y) = Just (x==y)
 
 -- | Given a list of strings pair each one with the sublist of strings that
 -- differ by one letter.
@@ -176,89 +172,16 @@ part as = DL.unfoldr coAlg as
 	coAlg :: [[a]] -> Maybe ( ([a], [[a]]), [[a]] )
 	coAlg [] = Nothing
 	coAlg (b:bs) =
-		let (g,ng) = DL.partition (diffOne b) as in
+		let g = filter (diffOne b) as in
 		Just $ ( (b,g) , bs )
 
 -- | Solve part 2 by comparing all strings
-solve_2bf :: IO ()
-solve_2bf = do
-	SysIO.withFile "inputs/day02" SysIO.ReadMode $ \input_fh ->
-		(lines <$> SysIO.hGetContents input_fh) >>= \file_lines ->
-		print $
-			filter (not . null. snd) $ part $ file_lines
-
-data RoseTree a = RoseTree a [Maybe (RoseTree a)] deriving (Show, Eq, Ord)
-
-data ReducedRoseTree a =
-	ReducedRoseTree [a] (RoseTree a) deriving (Show, Eq, Ord)
-
-build :: (Show a, Eq a, Ord a) => [[a]] -> [RoseTree a]
-build l = --trace ("\n>>rec>>" ++ show l) $
-	(concatMap mapper . DL.groupBy ((==) `on` head)) l
-	where
-	-- all these have the same prefix
-	mapper :: (Show a, Eq a, Ord a) =>
-		[[a]] -> [RoseTree a]
-	mapper (a:[]) = pure $ prefixer a []
-	mapper ((a:as):ass) = pure . RoseTree a $
-		(fmap (const Nothing) $ filter null $ as:(fmap tail ass))
-		 ++ (fmap pure $ build $ filter (not . null) $ as:(fmap tail ass))
-
-
-
-sing :: [a] -> Bool
-sing [a] = True
-sing _ = False
-
-prefixer :: [a] -> [Maybe (RoseTree a)] -> RoseTree a
-prefixer [a] = RoseTree a
-prefixer (a:as) =  RoseTree a . pure . pure . prefixer as
-
 solve_2 :: IO ()
-solve_2= do
+solve_2 = do
 	SysIO.withFile "inputs/day02" SysIO.ReadMode $ \input_fh ->
 		(lines <$> SysIO.hGetContents input_fh) >>= \file_lines ->
 		print $
 			filter (not . null. snd) $ part $ file_lines
-
--- test_input :: [String]
--- test_input =
--- 	["abcdef", "bababc", "abbcde", "abcccd", "aabcdd", "abcdee", "ababab"]
-
-test_input :: [String]
-test_input = [ "abcde", "fghij", "klmno", "pqrst", "fguij", "axcye", "vxyz"]
-
-{-
-[RoseTree 'a'
-	[Just (RoseTree 'a'
-		[Just (RoseTree 'b'
-			[Just (RoseTree 'c'
-				[Just (RoseTree 'd'
-					[Just (RoseTree 'd' [])])])])])
-	,Just (RoseTree 'b'
-		[Just (RoseTree 'a'
-			[Just (RoseTree 'b'
-				[Just (RoseTree 'a'
-					[Just (RoseTree 'b' [])])])])
-		,Just (RoseTree 'b'
-			[Just (RoseTree 'c'
-				[Just (RoseTree 'd'
-					[Just (RoseTree 'e' [])])])])
-		,Just (RoseTree 'c'
-			[Just (RoseTree 'c'
-				[Just (RoseTree 'c'
-					[Just (RoseTree ' d' [])])])
-			,Just (RoseTree 'd'
-				[Just (RoseTree 'e'
-					[Just (RoseTree 'e' [])
-					,Just (RoseTree 'f' [])])])])])]
-,RoseTree 'b'
-	[Just (RoseTree 'a'
-		[Just (RoseTree 'b'
-			[ Just (RoseTree 'a'
-				[Just (RoseTree 'b' [Just (RoseTree 'c' [])])])])])]
-]
--}
 
 {-
 "zihwtxagwifpbsnwleydukjmqv"
