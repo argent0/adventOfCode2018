@@ -17,14 +17,23 @@ import qualified Data.List as DL
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Foldable as DF
-import Data.Functor.Foldable (ana)
-import Control.Monad.Free (retract)
-import Data.Functor.Identity (runIdentity, Identity(..))
+import Data.Functor.Foldable
+import Data.Functor.Foldable.TH
+import Control.Monad.Free --(retract)
+import Data.Functor.Identity --(runIdentity, Identity(..))
+
 import qualified Control.Monad.Trans.Free as CMTF
+import qualified Control.Comonad.Trans.Cofree as CCTC
+
 import Control.Arrow ((***))
 import Data.Bool (bool)
+import Control.Comonad.Cofree
 
 import Data.Maybe
+
+import Control.Monad.Zip
+
+import Data.Functor.Apply
 
 -- Count the number of repetitions each element has
 -- O(n*log n)
@@ -125,6 +134,26 @@ solve_1= do
 
 -- Part 2
 
+-- | Non empty list
+-- Needed for the definition of diffOne
+
+--data NonEmpty a = Cons a (NonEmpty a)
+
+--data Triv a = Triv a deriving Functor
+--
+--makeBaseFunctor ''NonEmpty
+
+-- data Rec a = Rec a (Rec a)
+extend :: forall a t . Traversable t => t a -> Cofree Identity (Maybe a)
+extend = ana coAlg . DF.toList
+	where
+	coAlg [] = Nothing CCTC.:< (Identity [])
+	coAlg (a:as) = (Just a) CCTC.:< (Identity as)
+
+--	extend = DL.unfoldr extendr
+--	extendr [] = Just (Nothing, [])
+--	extendr (x:xs) = Just $ (Just x, xs)
+
 -- | True if argument strings differ by one letter.
 --
 -- It is lazy on both strings
@@ -138,22 +167,31 @@ solve_1= do
 -- Different lengths don't have diffOne
 -- >>> diffOne "abc" "abdx"
 -- False
+
 diffOne :: forall a t t'. (Foldable t, Foldable t', Eq a) => t a -> t' a -> Bool
-diffOne a b = runIdentity . retract . ana coAlg $ zip (extend $ DF.toList a) (extend $ DF.toList b)
+diffOne a b = runIdentity . retract . ana coAlg $ liftF2 (,) (extend $ DF.toList a) (extend $ DF.toList b)
 	where
-	coAlg [] = error "extendr didn't create an infinite list."
-	coAlg ((Nothing,_):_) = CMTF.Pure False
-	coAlg ((_, Nothing):_) = CMTF.Pure False
-	coAlg ((Just e, Just ee):ps)
-		| e /= ee = CMTF.Pure $ and $ catMaybes $ takeWhile isJust $ fmap (uncurry meq) ps
-		| otherwise = CMTF.Free (Identity ps)
+	coAlg :: Cofree Identity (Maybe a, Maybe a) -> Base (Free Identity Bool) (Cofree Identity (Maybe a, Maybe a))
+	coAlg ( (Nothing, _) :< _ )  = CMTF.Pure False
+	coAlg ( (_, Nothing) :< _ )  = CMTF.Pure False
+	coAlg ( (Just e, Just ee) :< ps )
+		| e /= ee = CMTF.Pure (rest ps)
+		| otherwise = CMTF.Free ps
+	rest :: Identity (Cofree Identity (Maybe a, Maybe a)) -> Bool
+	rest ps = runIdentity $ fmap _ ps
+	-- coAlg [] = error "extendr didn't create an infinite list."
+	-- coAlg ((Nothing,_):_) = CMTF.Pure False
+	-- coAlg ((_, Nothing):_) = CMTF.Pure False
+	-- coAlg ((Just e, Just ee):ps)
+	-- 	| e /= ee = CMTF.Pure $ and $ catMaybes $ takeWhile isJust $ fmap (uncurry meq) ps
+	-- 	| otherwise = CMTF.Free (Identity ps)
 	-- Make the lists infinite by transforming them to Justs and appending
 	-- Nothings to the end
 	-- extend [1,2] = [Just 1, Just 2, Nothing, Nothing, ...]
-	extend :: [a] -> [Maybe a]
-	extend = DL.unfoldr extendr
-	extendr [] = Just (Nothing, [])
-	extendr (x:xs) = Just $ (Just x, xs)
+	--extend :: [a] -> [Maybe a]
+	--extend = DL.unfoldr extendr
+	--extendr [] = Just (Nothing, [])
+	--extendr (x:xs) = Just $ (Just x, xs)
 	-- Compare as long as there is something to compare
 	meq :: Maybe a -> Maybe a -> Maybe Bool
 	meq Nothing Nothing = Nothing
