@@ -76,6 +76,7 @@ executable adventOfCode2018
 					   , vector >= 0.12
 					   , diffarray >= 0.1
 					   , random >= 1.1
+					   , semigroupoids >= 5.3.1
 
   -- Directories containing source files.
   hs-source-dirs:      src

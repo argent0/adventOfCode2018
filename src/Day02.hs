@@ -178,7 +178,29 @@ diffOne a b = runIdentity . retract . ana coAlg $ liftF2 (,) (extend $ DF.toList
 		| e /= ee = CMTF.Pure (rest ps)
 		| otherwise = CMTF.Free ps
 	rest :: Identity (Cofree Identity (Maybe a, Maybe a)) -> Bool
-	rest ps = runIdentity $ fmap _ ps
+	rest ps = hylo alg coAlg' $ runIdentity $ fmap (fmap (uncurry meq)) $ ps
+
+	coAlg' :: Cofree Identity (Maybe Bool) -> Base (Free Identity (Maybe Bool)) (Cofree Identity (Maybe Bool))
+	coAlg' (Nothing :< _) = CMTF.Pure Nothing
+	coAlg' ((Just False) :< _) = CMTF.Pure (Just False)
+	coAlg' ((Just True) :< js) = CMTF.Free js
+
+	alg :: Base (Free Identity (Maybe Bool)) Bool -> Bool
+	alg (CMTF.Pure Nothing) = True
+	alg (CMTF.Pure (Just False)) = False
+	alg (CMTF.Pure (Just True)) = True
+	alg (CMTF.Free js) = runIdentity js
+
+	-- rest ps = and $ DL.unfoldr unfolder $ runIdentity $ fmap DF.toList $ fmap (fmap (uncurry meq)) $ ps
+	-- unfolder :: [Maybe Bool] -> Maybe (Bool, [Maybe Bool])
+	-- unfolder [] = Nothing
+	-- unfolder (Nothing:_) = Nothing
+	-- unfolder (Just bl:rs) = Just (bl, rs)
+
+	--folder :: Cofree Identity (Maybe Bool) -> Bool -> Bool
+	--folder ( Nothing :< _ ) acc = acc
+	--folder ( Just bl :< _ ) acc = bl && acc
+	--folder (Just bl) acc = bl && acc
 	-- coAlg [] = error "extendr didn't create an infinite list."
 	-- coAlg ((Nothing,_):_) = CMTF.Pure False
 	-- coAlg ((_, Nothing):_) = CMTF.Pure False
@@ -202,7 +224,7 @@ diffOne a b = runIdentity . retract . ana coAlg $ liftF2 (,) (extend $ DF.toList
 -- | Given a list of strings pair each one with the sublist of strings that
 -- differ by one letter.
 --
--- >>> part' ["abc","abd","xyz"]
+-- >>> part ["abc","abd","xyz"]
 -- [("abc",["abd"]),("abd",["abc"]),("xyz",[])]
 part :: forall a . Eq a => [[a]] -> [([a], [[a]])]
 part as = DL.unfoldr coAlg as
