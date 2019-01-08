@@ -18,7 +18,6 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Foldable as DF
 import Data.Functor.Foldable
-import Data.Functor.Foldable.TH
 import Control.Monad.Free --(retract)
 import Data.Functor.Identity --(runIdentity, Identity(..))
 
@@ -28,10 +27,6 @@ import qualified Control.Comonad.Trans.Cofree as CCTC
 import Control.Arrow ((***))
 import Data.Bool (bool)
 import Control.Comonad.Cofree
-
-import Data.Maybe
-
-import Control.Monad.Zip
 
 import Data.Functor.Apply
 
@@ -134,25 +129,36 @@ solve_1= do
 
 -- Part 2
 
--- | Non empty list
--- Needed for the definition of diffOne
-
---data NonEmpty a = Cons a (NonEmpty a)
-
---data Triv a = Triv a deriving Functor
+-- | Unfolds `t a` into a stream of (Maybe a).
 --
---makeBaseFunctor ''NonEmpty
+-- It starts with Justs as long as `t a` has elements. Then, it continues with
+-- `Nothing`.
+--
+-- We can define a stream as:
+--
+-- @data Rec a = Rec a (Rec a)@
+--
+-- This is isomorphic to
+--
+-- @Cofree Identity a@
+--
+-- where
+--
+-- @Cofree f a = a :< Cofree f a@
+--
+-- E.g:
+--
+-- >>> take 5 $ DF.toList $ extend [True, False]
+-- [Just True,Just False,Nothing,Nothing,Nothing]
+--
+-- >>> take 5 $ DF.toList $ extend []
+-- [Nothing,Nothing,Nothing,Nothing,Nothing]
 
--- data Rec a = Rec a (Rec a)
 extend :: forall a t . Traversable t => t a -> Cofree Identity (Maybe a)
 extend = ana coAlg . DF.toList
 	where
 	coAlg [] = Nothing CCTC.:< (Identity [])
 	coAlg (a:as) = (Just a) CCTC.:< (Identity as)
-
---	extend = DL.unfoldr extendr
---	extendr [] = Just (Nothing, [])
---	extendr (x:xs) = Just $ (Just x, xs)
 
 -- | True if argument strings differ by one letter.
 --
@@ -171,49 +177,34 @@ extend = ana coAlg . DF.toList
 diffOne :: forall a t t'. (Foldable t, Foldable t', Eq a) => t a -> t' a -> Bool
 diffOne a b = runIdentity . retract . ana coAlg $ liftF2 (,) (extend $ DF.toList a) (extend $ DF.toList b)
 	where
+	-- Unfold a `Free Identity Bool` value from a stream of `(Maybe a, Maybe a)`
 	coAlg :: Cofree Identity (Maybe a, Maybe a) -> Base (Free Identity Bool) (Cofree Identity (Maybe a, Maybe a))
+	-- It can be concluded that the result is False if one of the lists ends
 	coAlg ( (Nothing, _) :< _ )  = CMTF.Pure False
 	coAlg ( (_, Nothing) :< _ )  = CMTF.Pure False
 	coAlg ( (Just e, Just ee) :< ps )
+		-- The result can be computed from the remaining values, if a difference is found
 		| e /= ee = CMTF.Pure (rest ps)
+		-- otherwise, it is necessary to continue
 		| otherwise = CMTF.Free ps
+
+	-- Convert a stream to a Bool value.
+	-- `hylo` is for hylomorphism: builds up and tears down a virtual structure
 	rest :: Identity (Cofree Identity (Maybe a, Maybe a)) -> Bool
 	rest ps = hylo alg coAlg' $ runIdentity $ fmap (fmap (uncurry meq)) $ ps
 
-	coAlg' :: Cofree Identity (Maybe Bool) -> Base (Free Identity (Maybe Bool)) (Cofree Identity (Maybe Bool))
-	coAlg' (Nothing :< _) = CMTF.Pure Nothing
-	coAlg' ((Just False) :< _) = CMTF.Pure (Just False)
-	coAlg' ((Just True) :< js) = CMTF.Free js
+	-- Unfold a `Free Identity Bool` value from a stream of `Maybe Bool`
+	coAlg' :: Cofree Identity (Maybe Bool) -> Base (Free Identity Bool) (Cofree Identity (Maybe Bool))
+	coAlg' (Nothing :< _) = CMTF.Pure True	-- Conclude if we reach the Nothing's
+	coAlg' ((Just False) :< _) = CMTF.Pure False -- Or if we reach a False value
+	coAlg' ((Just True) :< js) = CMTF.Free js -- Continue if we get a True
 
-	alg :: Base (Free Identity (Maybe Bool)) Bool -> Bool
-	alg (CMTF.Pure Nothing) = True
-	alg (CMTF.Pure (Just False)) = False
-	alg (CMTF.Pure (Just True)) = True
+	-- Fold or destruct a `Free Identity Bool` value into a Bool
+	alg :: Base (Free Identity Bool) Bool -> Bool
+	alg (CMTF.Pure True) = True
+	alg (CMTF.Pure False) = False
 	alg (CMTF.Free js) = runIdentity js
 
-	-- rest ps = and $ DL.unfoldr unfolder $ runIdentity $ fmap DF.toList $ fmap (fmap (uncurry meq)) $ ps
-	-- unfolder :: [Maybe Bool] -> Maybe (Bool, [Maybe Bool])
-	-- unfolder [] = Nothing
-	-- unfolder (Nothing:_) = Nothing
-	-- unfolder (Just bl:rs) = Just (bl, rs)
-
-	--folder :: Cofree Identity (Maybe Bool) -> Bool -> Bool
-	--folder ( Nothing :< _ ) acc = acc
-	--folder ( Just bl :< _ ) acc = bl && acc
-	--folder (Just bl) acc = bl && acc
-	-- coAlg [] = error "extendr didn't create an infinite list."
-	-- coAlg ((Nothing,_):_) = CMTF.Pure False
-	-- coAlg ((_, Nothing):_) = CMTF.Pure False
-	-- coAlg ((Just e, Just ee):ps)
-	-- 	| e /= ee = CMTF.Pure $ and $ catMaybes $ takeWhile isJust $ fmap (uncurry meq) ps
-	-- 	| otherwise = CMTF.Free (Identity ps)
-	-- Make the lists infinite by transforming them to Justs and appending
-	-- Nothings to the end
-	-- extend [1,2] = [Just 1, Just 2, Nothing, Nothing, ...]
-	--extend :: [a] -> [Maybe a]
-	--extend = DL.unfoldr extendr
-	--extendr [] = Just (Nothing, [])
-	--extendr (x:xs) = Just $ (Just x, xs)
 	-- Compare as long as there is something to compare
 	meq :: Maybe a -> Maybe a -> Maybe Bool
 	meq Nothing Nothing = Nothing
@@ -221,7 +212,7 @@ diffOne a b = runIdentity . retract . ana coAlg $ liftF2 (,) (extend $ DF.toList
 	meq (Just _) Nothing = Just False
 	meq (Just x) (Just y) = Just (x==y)
 
--- | Given a list of strings pair each one with the sublist of strings that
+-- | Given a list of strings pair each one with the sub-list of strings that
 -- differ by one letter.
 --
 -- >>> part ["abc","abd","xyz"]
