@@ -212,6 +212,21 @@ diffOne a b = runIdentity . retract . ana coAlg $ liftF2 (,) (extend $ DF.toList
 	meq (Just _) Nothing = Just False
 	meq (Just x) (Just y) = Just (x==y)
 
+-- | Return the common elements when there is only one difference
+--
+-- >>> commons "fghij" "fguij"
+-- Just "fgij"
+-- >>> commons ['a','b',undefined] ['x','y',undefined]
+-- Nothing
+
+commons :: Eq a => [a] -> [a] -> Maybe [a]
+commons [] [] = Just []
+commons (_:_) [] = Nothing
+commons [] (_:_) = Nothing
+commons (a:as) (b:bs)
+	| a == b = (a:) <$> commons as bs
+	| otherwise = bool Nothing (Just as) (as == bs)
+
 -- | Given a list of strings pair each one with the sub-list of strings that
 -- differ by one letter.
 --
@@ -232,6 +247,7 @@ solve_2 = do
 	SysIO.withFile "inputs/day02" SysIO.ReadMode $ \input_fh ->
 		(lines <$> SysIO.hGetContents input_fh) >>= \file_lines ->
 		print $
+			fmap (\(h, l) -> fmap (commons h) l) $
 			filter (not . null. snd) $ part $ file_lines
 
 {-
