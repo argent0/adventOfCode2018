@@ -218,9 +218,11 @@ diffOne a b = runIdentity . retract . ana coAlg $ liftF2 (,) (extend $ DF.toList
 -- Just "fgij"
 -- >>> commons ['a','b',undefined] ['x','y',undefined]
 -- Nothing
+-- >>> commons "abc" "abc"
+-- Nothing
 
 commons :: Eq a => [a] -> [a] -> Maybe [a]
-commons [] [] = Just []
+commons [] [] = Nothing
 commons (_:_) [] = Nothing
 commons [] (_:_) = Nothing
 commons (a:as) (b:bs)
