@@ -1,5 +1,10 @@
 # Advent Of Code 2018
 
+## Disclaimer
+
+This is mostly experimental code. For practice, I try to reuse preexisting
+recursion schemes.
+
 ## Days
 
 ### Day 01

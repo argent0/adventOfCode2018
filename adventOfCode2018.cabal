@@ -83,7 +83,7 @@ executable adventOfCode2018
 
   -- Base language which the package is written in.
   default-language:    Haskell2010
-  ghc-options: -O2 -Wall -fno-warn-tabs
+  ghc-options: -O2 -fno-warn-tabs
 
 test-suite doctest
 	build-depends:		base >= 4.12, doctest >= 0.16
@@ -91,4 +91,4 @@ test-suite doctest
 	hs-source-dirs:		test
 	main-is:			Main.hs
 	type:				exitcode-stdio-1.0
-	ghc-options: -Wall -fno-warn-tabs
+	ghc-options: -fno-warn-tabs

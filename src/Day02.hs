@@ -18,8 +18,10 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Foldable as DF
 import Data.Functor.Foldable
+import Data.Functor.Foldable.TH
 import Control.Monad.Free --(retract)
 import Data.Functor.Identity --(runIdentity, Identity(..))
+import Data.Functor.Const
 
 import qualified Control.Monad.Trans.Free as CMTF
 import qualified Control.Comonad.Trans.Cofree as CCTC
@@ -155,6 +157,8 @@ solve_1= do
 --
 -- >>> take 5 $ DF.toList $ extend []
 -- [Nothing,Nothing,Nothing,Nothing,Nothing]
+--
+-- See: Data.Align
 
 extend :: forall a . [a] -> Cofree Identity (Maybe a)
 extend = ana coAlg . DF.toList
@@ -226,9 +230,62 @@ diffOne as bs = runIdentity . retract . ana coAlg $ liftF2 (,) (extend as) (exte
 commons :: Eq a => [a] -> [a] -> Maybe [a]
 commons _ [] = Nothing
 commons [] _ = Nothing
-commons (a:as) (b:bs)
-	| a == b = (a:) <$> commons as bs
-	| otherwise = bool Nothing (Just as) (as == bs)
+commons (a:as) (b:bs) = bool
+	(bool
+		Nothing
+		(Just as)
+		(as == bs))
+	( (a:) <$> commons as bs )
+	(a == b)
+
+data Rec a b = Exact | MoreA [a] | MoreB [b] | Rec a b (Rec a b) deriving Show
+makeBaseFunctor ''Rec
+
+build :: [a] -> [b] -> Rec a b
+build as bs = ana coAlg (as, bs)
+	where
+	coAlg ([], []) = ExactF
+	coAlg (as, []) = MoreAF as
+	coAlg ([], bs) = MoreBF bs
+	coAlg ( a:as, b:bs ) = RecF a b (as, bs)
+
+-- | Return the common elements when there is only one difference
+--
+-- >>> comm "fghij" "fguij"
+-- Just "fgij"
+--
+-- comm ['a','b',undefined] ['x','y',undefined]
+-- Nothing
+--
+-- >>> comm "abc" "abc"
+-- Nothing
+
+-- :info histo
+-- histo :: Recursive t => (Base t (Cofree (Base t) a) -> a) -> t -> a
+
+-- Right: we don't have a definitive answer
+-- Left: we have a definitive answer
+--
+-- Not lazy, reeimplement with para?
+type Trg a = Either (Maybe [a]) [a]
+
+comm :: forall a . Eq a => [a] -> [a] -> Maybe [a]
+comm as bs = foo $ histo alg $ build as bs
+	where
+	foo :: Trg a -> Maybe [a]
+	foo (Right _) = Nothing
+	foo (Left acc) = acc
+	alg :: Base (Rec a a) (Cofree (Base (Rec a a)) (Trg a)) -> Trg a
+	alg ExactF = Right []
+	alg (MoreAF _) = Left Nothing
+	alg (MoreBF _) = Left Nothing
+	alg (RecF a b co@( c :< cs) )
+		| a == b = case c of
+			Left acc -> Left $ (a:) <$> acc
+			Right acc -> Right (a:acc)
+		| otherwise = case c of
+			Left _ -> Left Nothing
+			Right acc -> Left $ Just acc
 
 -- On abusing constrains.
 --
