@@ -30,6 +30,8 @@ import Control.Comonad.Cofree
 
 import Data.Functor.Apply
 
+import Data.Maybe (catMaybes)
+
 -- Count the number of repetitions each element has
 -- O(n*log n)
 count :: Ord a => [a] -> Map a Integer
@@ -222,12 +224,15 @@ diffOne a b = runIdentity . retract . ana coAlg $ liftF2 (,) (extend $ DF.toList
 -- Nothing
 
 commons :: Eq a => [a] -> [a] -> Maybe [a]
-commons [] [] = Nothing
-commons (_:_) [] = Nothing
-commons [] (_:_) = Nothing
+commons _ [] = Nothing
+commons [] _ = Nothing
 commons (a:as) (b:bs)
 	| a == b = (a:) <$> commons as bs
 	| otherwise = bool Nothing (Just as) (as == bs)
+
+-- | All vs all application of f
+quadTime :: forall a b c f . Foldable f => (a -> b -> c) -> f a -> f b -> [c]
+quadTime f as bs = f <$> DF.toList as <*> DF.toList bs
 
 -- | Given a list of strings pair each one with the sub-list of strings that
 -- differ by one letter.
@@ -243,19 +248,14 @@ part as = DL.unfoldr coAlg as
 		let g = filter (diffOne b) as in
 		Just $ ( (b,g) , bs )
 
+-- The problem input as an IO effect
+input :: IO [String]
+input = do
+	input_fh <- SysIO.openFile "inputs/day02" SysIO.ReadMode
+	contents <- SysIO.hGetContents input_fh
+	pure $ lines $ contents
+
 -- | Solve part 2 by comparing all strings
 solve_2 :: IO ()
-solve_2 = do
-	SysIO.withFile "inputs/day02" SysIO.ReadMode $ \input_fh ->
-		(lines <$> SysIO.hGetContents input_fh) >>= \file_lines ->
-		print $
-			fmap (\(h, l) -> fmap (commons h) l) $
-			filter (not . null. snd) $ part $ file_lines
-
-{-
-"zihwtxagwifpbsnwleydukjmqv"
-"zihwtxagsifpbsnwleydukjmqv"
-
-"zihwtxagifpbsnwleydukjmqv"
-"zihwtxagifpbsnwleydukjmqv"
--}
+solve_2 =
+	(quadTime commons <$> input <*> input) >>= putStrLn . unlines . catMaybes
