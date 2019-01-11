@@ -101,8 +101,8 @@ count' = DL.unfoldr unfolder
 -- (False,True)
 -- >>> elem2 1 2 [1,3]
 -- (True,False)
-elem2 :: forall a t. (Eq a, Foldable t) => a -> a -> t a -> (Bool, Bool)
-elem2 a b = runIdentity . retract . ana coAlg . DF.toList
+elem2 :: forall a . Eq a => a -> a -> [a] -> (Bool, Bool)
+elem2 a b = runIdentity . retract . ana coAlg
 	where
 	coAlg [] = CMTF.Pure (False, False)
 	coAlg (e:es)
@@ -117,7 +117,7 @@ checksum :: [String] -> Integer
 checksum = uncurry (*) . DL.foldl' folder (0,0) . fmap count
 	where
 	folder :: (Integer, Integer) -> Map Char Integer -> (Integer, Integer)
-	folder (p, t) counts = (+p) *** (+t) $ (bool 0 1) *** (bool 0 1) $ elem2 2 3 counts
+	folder (p, t) counts = (+p) *** (+t) $ (bool 0 1) *** (bool 0 1) $ elem2 2 3 $ DF.toList counts
 	--(False, False) -> (p, t)
 	--(True, False) -> (p + 1, t)
 	--(False, True) -> (p, t + 1)
@@ -156,7 +156,7 @@ solve_1= do
 -- >>> take 5 $ DF.toList $ extend []
 -- [Nothing,Nothing,Nothing,Nothing,Nothing]
 
-extend :: forall a t . Traversable t => t a -> Cofree Identity (Maybe a)
+extend :: forall a . [a] -> Cofree Identity (Maybe a)
 extend = ana coAlg . DF.toList
 	where
 	coAlg [] = Nothing CCTC.:< (Identity [])
@@ -176,8 +176,8 @@ extend = ana coAlg . DF.toList
 -- >>> diffOne "abc" "abdx"
 -- False
 
-diffOne :: forall a t t'. (Foldable t, Foldable t', Eq a) => t a -> t' a -> Bool
-diffOne a b = runIdentity . retract . ana coAlg $ liftF2 (,) (extend $ DF.toList a) (extend $ DF.toList b)
+diffOne :: forall a . Eq a => [a] -> [a] -> Bool
+diffOne as bs = runIdentity . retract . ana coAlg $ liftF2 (,) (extend as) (extend bs)
 	where
 	-- Unfold a `Free Identity Bool` value from a stream of `(Maybe a, Maybe a)`
 	coAlg :: Cofree Identity (Maybe a, Maybe a) -> Base (Free Identity Bool) (Cofree Identity (Maybe a, Maybe a))
@@ -499,7 +499,7 @@ part as = DL.unfoldr coAlg as
 		let g = filter (diffOne b) as in
 		Just $ ( (b,g) , bs )
 
--- The problem input as an IO effect
+-- The problem input as an IO effect. For repl-convinience.
 input :: IO [String]
 input = do
 	input_fh <- SysIO.openFile "inputs/day02" SysIO.ReadMode
@@ -508,5 +508,6 @@ input = do
 
 -- | Solve part 2 by comparing all strings
 solve_2 :: IO ()
-solve_2 =
-	(quadTime commons <$> input <*> input) >>= putStrLn . unlines . catMaybes
+solve_2 = do
+	i <- input
+	putStrLn . unlines . catMaybes $ quadTime commons i i
