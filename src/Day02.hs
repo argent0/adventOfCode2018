@@ -220,39 +220,6 @@ diffOne as bs = runIdentity . retract . ana coAlg $ liftF2 (,) (extend as) (exte
 	meq (Just _) Nothing = Just False
 	meq (Just x) (Just y) = Just (x==y)
 
--- For the recursion in commons
---
--- Rec a (Rec a) : Keep adding elements to the result
--- No : Abort when there are more than two different values or the lists are
--- equal
--- Yes [a] : There is only one difference and the rest of the elements are [a]
-data Rec a = Rec a (Rec a) | No | Yes [a] deriving Show
-makeBaseFunctor ''Rec
-
--- | Return the common elements when there is only one difference
---
--- >>> commons "fghij" "fguij"
--- Just "fgij"
--- >>> commons ['a','b',undefined] ['x','y',undefined]
--- Nothing
--- >>> commons "abc" "abc"
--- Nothing
-commons :: forall a . Eq a => [a] -> [a] -> Maybe [a]
-commons xx yy = hylo alg coAlg (xx, yy)
-	where
-
-	alg :: Base (Rec a) (Maybe [a]) -> Maybe [a]
-	alg NoF = Nothing
-	alg (YesF acc) = Just acc
-	alg (RecF a acc) = (a:) <$> acc
-
-	coAlg :: ([a], [a]) -> Base (Rec a) ([a], [a])
-	coAlg ([], _) = NoF
-	coAlg (_, []) = NoF
-	coAlg ( (a:as), (b:bs) )
-		| a == b = RecF a (as, bs)
-		| otherwise = bool NoF (YesF as) (as == bs)
-
 --data Free (f :: * -> *) a = Pure a | Free (f (Free f a))
 
 --type List' a = Free (Maybe `Compose` (,) a) a -- ~ [a]
@@ -264,25 +231,38 @@ commons xx yy = hylo alg coAlg (xx, yy)
 --	coAlg [a] = CMTF.Pure a
 --	coAlg (a:as) = CMTF.Free (Compose $ Just (a, as))
 
-type Cmp a = Free (Maybe `Compose` (Maybe `Compose` (,) a)) [a]
-build :: forall a . Eq a => [a] -> [a] -> Cmp a
-build xx yy = ana coAlg (xx, yy)
+-- | A computation that isomorphic to
+-- data Rec a = Rec a (Rec a) | No | Yes [a] deriving Show
+--
+-- Pure [a] = Yes [a]
+-- Free (Compose Nothing) = No
+-- Free (Compose (Just (a, ...))) = Rec a ...
+type Cmp a = Free (Maybe `Compose` ((,) a)) [a]
+
+--- | Return the common elements when there is only one difference
+--
+-- >>> commons "fghij" "fguij"
+-- Just "fgij"
+-- >>> commons ['a','b',undefined] ['x','y',undefined]
+-- Nothing
+-- >>> commons "abc" "abc"
+-- Nothing
+
+commons :: forall a . Eq a => [a] -> [a] -> Maybe [a]
+commons xx yy = hylo alg coAlg (xx, yy)
 	where
+	alg :: Base (Cmp a) (Maybe [a]) -> Maybe [a]
+	alg (CMTF.Pure rest) = Just rest
+	alg (CMTF.Free (Compose Nothing)) = Nothing
+	alg (CMTF.Free (Compose (Just (a,as)))) = (a:) <$> as
+
 	coAlg :: ([a], [a]) -> Base (Cmp a) ([a], [a])
 	coAlg ([], _) = CMTF.Free (Compose Nothing)
 	coAlg (_, []) = CMTF.Free (Compose Nothing)
 	coAlg ( (a:as), (b:bs) )
-		| a == b = CMTF.Free $ Compose $ Just $ Compose $ Just (a, (as, bs))
+		| a == b = CMTF.Free $ Compose $ Just $ (a, (as, bs))
 		| as == bs = CMTF.Pure as
 		| otherwise = CMTF.Free (Compose Nothing)
--- bld :: forall a . Eq a => [a] -> [a] -> Cmp a
--- bld xx yy = apo coAlg (xx, yy)
--- 	where
--- 	coAlg :: ([a], [a]) -> Base (Cmp a) (Either (Cmp a) ([a], [a]))
--- 	coAlg ([], _) = CMTF.Pure Nothing
--- 	coAlg (_, []) = CMTF.Pure Nothing
--- 	coAlg ( (a:as), (b:bs) )
--- 		| a == b = CMTF.Free _
 
 
 -- On abusing constrains.
