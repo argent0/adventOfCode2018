@@ -7,6 +7,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeOperators #-}
 module Day02
 	( solve_1
 	, solve_2
@@ -33,6 +34,7 @@ import Control.Comonad.Cofree
 import Data.Functor.Apply
 
 import Data.Maybe (catMaybes)
+import Data.Functor.Compose
 
 -- Count the number of repetitions each element has
 -- O(n*log n)
@@ -235,7 +237,6 @@ makeBaseFunctor ''Rec
 -- Nothing
 -- >>> commons "abc" "abc"
 -- Nothing
-
 commons :: forall a . Eq a => [a] -> [a] -> Maybe [a]
 commons xx yy = hylo alg coAlg (xx, yy)
 	where
@@ -246,12 +247,43 @@ commons xx yy = hylo alg coAlg (xx, yy)
 	alg (RecF a acc) = (a:) <$> acc
 
 	coAlg :: ([a], [a]) -> Base (Rec a) ([a], [a])
-	coAlg ([], []) = NoF
 	coAlg ([], _) = NoF
 	coAlg (_, []) = NoF
 	coAlg ( (a:as), (b:bs) )
 		| a == b = RecF a (as, bs)
 		| otherwise = bool NoF (YesF as) (as == bs)
+
+--data Free (f :: * -> *) a = Pure a | Free (f (Free f a))
+
+--type List' a = Free (Maybe `Compose` (,) a) a -- ~ [a]
+--build :: forall a . [a] -> List' a
+--build xx = ana coAlg xx
+--	where
+--	coAlg :: [a] -> Base (List' a) [a]
+--	coAlg [] = CMTF.Free (Compose Nothing)
+--	coAlg [a] = CMTF.Pure a
+--	coAlg (a:as) = CMTF.Free (Compose $ Just (a, as))
+
+type Cmp a = Free (Maybe `Compose` (Maybe `Compose` (,) a)) [a]
+build :: forall a . Eq a => [a] -> [a] -> Cmp a
+build xx yy = ana coAlg (xx, yy)
+	where
+	coAlg :: ([a], [a]) -> Base (Cmp a) ([a], [a])
+	coAlg ([], _) = CMTF.Free (Compose Nothing)
+	coAlg (_, []) = CMTF.Free (Compose Nothing)
+	coAlg ( (a:as), (b:bs) )
+		| a == b = CMTF.Free $ Compose $ Just $ Compose $ Just (a, (as, bs))
+		| as == bs = CMTF.Pure as
+		| otherwise = CMTF.Free (Compose Nothing)
+-- bld :: forall a . Eq a => [a] -> [a] -> Cmp a
+-- bld xx yy = apo coAlg (xx, yy)
+-- 	where
+-- 	coAlg :: ([a], [a]) -> Base (Cmp a) (Either (Cmp a) ([a], [a]))
+-- 	coAlg ([], _) = CMTF.Pure Nothing
+-- 	coAlg (_, []) = CMTF.Pure Nothing
+-- 	coAlg ( (a:as), (b:bs) )
+-- 		| a == b = CMTF.Free _
+
 
 -- On abusing constrains.
 --
