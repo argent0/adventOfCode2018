@@ -218,6 +218,15 @@ diffOne as bs = runIdentity . retract . ana coAlg $ liftF2 (,) (extend as) (exte
 	meq (Just _) Nothing = Just False
 	meq (Just x) (Just y) = Just (x==y)
 
+-- For the recursion in commons
+--
+-- Rec a (Rec a) : Keep adding elements to the result
+-- No : Abort when there are more than two different values or the lists are
+-- equal
+-- Yes [a] : There is only one difference and the rest of the elements are [a]
+data Rec a = Rec a (Rec a) | No | Yes [a] deriving Show
+makeBaseFunctor ''Rec
+
 -- | Return the common elements when there is only one difference
 --
 -- >>> commons "fghij" "fguij"
@@ -227,65 +236,22 @@ diffOne as bs = runIdentity . retract . ana coAlg $ liftF2 (,) (extend as) (exte
 -- >>> commons "abc" "abc"
 -- Nothing
 
-commons :: Eq a => [a] -> [a] -> Maybe [a]
-commons _ [] = Nothing
-commons [] _ = Nothing
-commons (a:as) (b:bs) = bool
-	(bool
-		Nothing
-		(Just as)
-		(as == bs))
-	( (a:) <$> commons as bs )
-	(a == b)
-
-data Rec a b = Exact | MoreA [a] | MoreB [b] | Rec a b (Rec a b) deriving Show
-makeBaseFunctor ''Rec
-
-build :: [a] -> [b] -> Rec a b
-build as bs = ana coAlg (as, bs)
+commons :: forall a . Eq a => [a] -> [a] -> Maybe [a]
+commons xx yy = hylo alg coAlg (xx, yy)
 	where
-	coAlg ([], []) = ExactF
-	coAlg (as, []) = MoreAF as
-	coAlg ([], bs) = MoreBF bs
-	coAlg ( a:as, b:bs ) = RecF a b (as, bs)
 
--- | Return the common elements when there is only one difference
---
--- >>> comm "fghij" "fguij"
--- Just "fgij"
---
--- comm ['a','b',undefined] ['x','y',undefined]
--- Nothing
---
--- >>> comm "abc" "abc"
--- Nothing
+	alg :: Base (Rec a) (Maybe [a]) -> Maybe [a]
+	alg NoF = Nothing
+	alg (YesF acc) = Just acc
+	alg (RecF a acc) = (a:) <$> acc
 
--- :info histo
--- histo :: Recursive t => (Base t (Cofree (Base t) a) -> a) -> t -> a
-
--- Right: we don't have a definitive answer
--- Left: we have a definitive answer
---
--- Not lazy, reeimplement with para?
-type Trg a = Either (Maybe [a]) [a]
-
-comm :: forall a . Eq a => [a] -> [a] -> Maybe [a]
-comm as bs = foo $ histo alg $ build as bs
-	where
-	foo :: Trg a -> Maybe [a]
-	foo (Right _) = Nothing
-	foo (Left acc) = acc
-	alg :: Base (Rec a a) (Cofree (Base (Rec a a)) (Trg a)) -> Trg a
-	alg ExactF = Right []
-	alg (MoreAF _) = Left Nothing
-	alg (MoreBF _) = Left Nothing
-	alg (RecF a b co@( c :< cs) )
-		| a == b = case c of
-			Left acc -> Left $ (a:) <$> acc
-			Right acc -> Right (a:acc)
-		| otherwise = case c of
-			Left _ -> Left Nothing
-			Right acc -> Left $ Just acc
+	coAlg :: ([a], [a]) -> Base (Rec a) ([a], [a])
+	coAlg ([], []) = NoF
+	coAlg ([], _) = NoF
+	coAlg (_, []) = NoF
+	coAlg ( (a:as), (b:bs) )
+		| a == b = RecF a (as, bs)
+		| otherwise = bool NoF (YesF as) (as == bs)
 
 -- On abusing constrains.
 --
