@@ -44,3 +44,4 @@ answer is `sums !! i`.
 
 [Time traveling recursion schemes](https://jtobin.io/time-traveling-recursion)
 [Recursion schemes field guide](http://comonad.com/reader/2009/recursion-schemes/)
+[Useful recursion schemes](https://medium.com/@jaredtobin/a-tour-of-some-useful-recursive-types-8fa8e423b5b9)

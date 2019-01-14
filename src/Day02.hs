@@ -24,10 +24,11 @@ import Control.Monad.Free --(retract)
 import Data.Functor.Identity --(runIdentity, Identity(..))
 import Data.Functor.Const
 
+import Control.Monad (join)
 import qualified Control.Monad.Trans.Free as CMTF
 import qualified Control.Comonad.Trans.Cofree as CCTC
 
-import Control.Arrow ((***))
+import Control.Arrow ((***),(&&&))
 import Data.Bool (bool)
 import Control.Comonad.Cofree
 
@@ -263,7 +264,6 @@ commons xx yy = hylo alg coAlg (xx, yy)
 		| a == b = CMTF.Free $ Compose $ Just $ (a, (as, bs))
 		| as == bs = CMTF.Pure as
 		| otherwise = CMTF.Free (Compose Nothing)
-
 
 -- On abusing constrains.
 --
@@ -520,6 +520,13 @@ commons xx yy = hylo alg coAlg (xx, yy)
 quadTime :: forall a b c . (a -> b -> c) -> [a] -> [b] -> [c]
 quadTime f as bs = f <$> as <*> bs
 
+-- | If f is commutative in its arguments, half of the pairs can be ignored.
+--
+-- >>> semiQuadTime (,) "abc"
+-- [('a','a'),('a','b'),('a','c'),('b','b'),('b','c'),('c','c')]
+semiQuadTime :: forall a b . (a -> a -> b) -> [a] -> [b]
+semiQuadTime f = join . (uncurry (zipWith (fmap . f))) . (id &&& DL.tails)
+
 -- | Given a list of strings pair each one with the sub-list of strings that
 -- differ by one letter.
 --
@@ -545,4 +552,4 @@ input = do
 solve_2 :: IO ()
 solve_2 = do
 	i <- input
-	putStrLn . unlines . catMaybes $ quadTime commons i i
+	putStrLn . unlines . catMaybes $ semiQuadTime commons i
