@@ -15,47 +15,18 @@ module Day02
 
 import qualified System.IO as SysIO
 import qualified Data.List as DL
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
-import qualified Data.Foldable as DF
-import Data.Functor.Foldable
-import Data.Functor.Foldable.TH
-import Control.Monad.Free --(retract)
-import Data.Functor.Identity --(runIdentity, Identity(..))
-import Data.Functor.Const
-
-import Control.Monad (join)
 import qualified Control.Monad.Trans.Free as CMTF
-import qualified Control.Comonad.Trans.Cofree as CCTC
+import qualified Data.Foldable as DF
 
-import Control.Arrow ((***),(&&&))
+import Data.Map.Strict (Map)
+import Data.Functor.Foldable (ana, hylo, Base)
+import Control.Monad.Free (retract, Free)
+import Data.Functor.Identity (runIdentity, Identity(..))
+import Control.Arrow ((***))
 import Data.Bool (bool)
-import Control.Comonad.Cofree
-
-import Data.Functor.Apply
-
 import Data.Maybe (catMaybes)
-import Data.Functor.Compose
-
--- Count the number of repetitions each element has
--- O(n*log n)
-count :: Ord a => [a] -> Map a Integer
-count = Map.fromListWith (+) . (flip zip) (repeat 1)
-
--- O(N^2) using only an `Eq` constraint
--- Alternative for unfolder:
--- 	unfolder (a:as) =
--- 		let (al,nas) = DL.partition (==a) as in
--- 			Just ((a, 1 + DL.genericLength al), nas)
-count' :: Eq a => [a] -> [(a, Integer)]
-count' = DL.unfoldr unfolder
-	where
-	unfolder [] = Nothing
-	unfolder (a:as) = Just $ DL.foldl' folder ((a, 1), []) as
-	-- Computes the length and partitions in one pass
-	folder ((a, n), nas) e
-		| e == a = ((a, n + 1), nas)
-		| otherwise = ((a, n), e:nas)
+import Data.Functor.Compose (Compose(..))
+import Util.Recursion (semiQuadTime, count)
 
 -- data Rec a = Rec (Rec a) | Done a deriving Show
 --
@@ -135,91 +106,6 @@ solve_1= do
 		print $ checksum file_lines
 
 -- Part 2
-
--- | Unfolds `t a` into a stream of (Maybe a).
---
--- It starts with Justs as long as `t a` has elements. Then, it continues with
--- `Nothing`.
---
--- We can define a stream as:
---
--- @data Rec a = Rec a (Rec a)@
---
--- This is isomorphic to
---
--- @Cofree Identity a@
---
--- where
---
--- @Cofree f a = a :< Cofree f a@
---
--- E.g:
---
--- >>> take 5 $ DF.toList $ extend [True, False]
--- [Just True,Just False,Nothing,Nothing,Nothing]
---
--- >>> take 5 $ DF.toList $ extend []
--- [Nothing,Nothing,Nothing,Nothing,Nothing]
---
--- See: Data.Align
-
-extend :: forall a . [a] -> Cofree Identity (Maybe a)
-extend = ana coAlg . DF.toList
-	where
-	coAlg [] = Nothing CCTC.:< (Identity [])
-	coAlg (a:as) = (Just a) CCTC.:< (Identity as)
-
--- | True if argument strings differ by one letter.
---
--- It is lazy on both strings
--- >>> diffOne ['a','b',undefined] ['x','y',undefined]
--- False
--- >>> diffOne "fghij" "fguij"
--- True
--- >>> diffOne "abc" "acb"
--- False
---
--- Different lengths don't have diffOne
--- >>> diffOne "abc" "abdx"
--- False
-
-diffOne :: forall a . Eq a => [a] -> [a] -> Bool
-diffOne as bs = runIdentity . retract . ana coAlg $ liftF2 (,) (extend as) (extend bs)
-	where
-	-- Unfold a `Free Identity Bool` value from a stream of `(Maybe a, Maybe a)`
-	coAlg :: Cofree Identity (Maybe a, Maybe a) -> Base (Free Identity Bool) (Cofree Identity (Maybe a, Maybe a))
-	-- It can be concluded that the result is False if one of the lists ends
-	coAlg ( (Nothing, _) :< _ )  = CMTF.Pure False
-	coAlg ( (_, Nothing) :< _ )  = CMTF.Pure False
-	coAlg ( (Just e, Just ee) :< ps )
-		-- The result can be computed from the remaining values, if a difference is found
-		| e /= ee = CMTF.Pure (rest ps)
-		-- otherwise, it is necessary to continue
-		| otherwise = CMTF.Free ps
-
-	-- Convert a stream to a Bool value.
-	-- `hylo` is for hylomorphism: builds up and tears down a virtual structure
-	rest :: Identity (Cofree Identity (Maybe a, Maybe a)) -> Bool
-	rest ps = hylo alg coAlg' $ runIdentity $ fmap (fmap (uncurry meq)) $ ps
-
-	-- Unfold a `Free Identity Bool` value from a stream of `Maybe Bool`
-	coAlg' :: Cofree Identity (Maybe Bool) -> Base (Free Identity Bool) (Cofree Identity (Maybe Bool))
-	coAlg' (Nothing :< _) = CMTF.Pure True	-- Conclude if we reach the Nothing's
-	coAlg' ((Just False) :< _) = CMTF.Pure False -- Or if we reach a False value
-	coAlg' ((Just True) :< js) = CMTF.Free js -- Continue if we get a True
-
-	-- Fold or destruct a `Free Identity Bool` value into a Bool
-	alg :: Base (Free Identity Bool) Bool -> Bool
-	alg (CMTF.Pure True) = True
-	alg (CMTF.Pure False) = False
-	alg (CMTF.Free js) = runIdentity js
-
-	-- Compare as long as there is something to compare
-	meq :: Maybe a -> Maybe a -> Maybe Bool
-	meq Nothing Nothing = Nothing
-	meq Nothing (Just _) = Just False
-	meq (Just _) Nothing = Just False
-	meq (Just x) (Just y) = Just (x==y)
 
 --data Free (f :: * -> *) a = Pure a | Free (f (Free f a))
 
@@ -515,31 +401,6 @@ commons xx yy = hylo alg coAlg (xx, yy)
 -- 18:07:44 <ski> i'm sorry if i'm not able to explain it more shortly/clearly
 -- 18:08:38 <argent0> ski: the frob example made it clear to me
 -- 18:08:52 <ski> ok, good
-
--- | All vs all application of f
-quadTime :: forall a b c . (a -> b -> c) -> [a] -> [b] -> [c]
-quadTime f as bs = f <$> as <*> bs
-
--- | If f is commutative in its arguments, half of the pairs can be ignored.
---
--- >>> semiQuadTime (,) "abc"
--- [('a','a'),('a','b'),('a','c'),('b','b'),('b','c'),('c','c')]
-semiQuadTime :: forall a b . (a -> a -> b) -> [a] -> [b]
-semiQuadTime f = join . (uncurry (zipWith (fmap . f))) . (id &&& DL.tails)
-
--- | Given a list of strings pair each one with the sub-list of strings that
--- differ by one letter.
---
--- >>> part ["abc","abd","xyz"]
--- [("abc",["abd"]),("abd",["abc"]),("xyz",[])]
-part :: forall a . Eq a => [[a]] -> [([a], [[a]])]
-part as = DL.unfoldr coAlg as
-	where
-	coAlg :: [[a]] -> Maybe ( ([a], [[a]]), [[a]] )
-	coAlg [] = Nothing
-	coAlg (b:bs) =
-		let g = filter (diffOne b) as in
-		Just $ ( (b,g) , bs )
 
 -- The problem input as an IO effect. For repl-convinience.
 input :: IO [String]
