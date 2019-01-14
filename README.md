@@ -39,3 +39,8 @@ that the repeated value is one element in `sums`. So we take `n_i = 0`.
 
 Of all those `n_j` we want the smallest and the one with the minimum `j`. Then the
 answer is `sums !! i`.
+
+## References
+
+[Time traveling recursion schemes](https://jtobin.io/time-traveling-recursion)
+[Recursion schemes field guide](http://comonad.com/reader/2009/recursion-schemes/)
