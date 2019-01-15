@@ -45,23 +45,33 @@ extra-source-files:  CHANGELOG.md
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.10
 
+library advent-lib
+	hs-source-dirs:	lib
+	exposed-modules: Util.QuadTree, Util.Recursion
+	default-language:	Haskell2010
+	build-depends:	base >= 4.12, doctest >= 0.16
+					, containers >= 0.6
+					, attoparsec >= 0.13
+					, text >= 1.2
+					, linear >= 1.20
+					, lens >= 4.17
+	ghc-options: -O2 -fno-warn-tabs
+
 executable adventOfCode2018
   -- .hs or .lhs file containing the Main module.
   main-is:             Main.hs
 
   -- Modules included in this executable, other than Main.
-  other-modules: Day19, Day17, Day16, Day15, Day14, Day13, Day12, Day11, Day10
-				 , Day04, Day05, Day06, Day07, Day08, Day09
-                 , Day02, Day03, Day03bis, Day01
-  				 , Util.Recursion, Util.Parsers
-				 , Util.Memo, Util.QuadTree, Util.Grid
+  other-modules:	Day19, Day17, Day16, Day15, Day14, Day13, Day12, Day11, Day10
+					, Day04, Day05, Day06, Day07, Day08, Day09
+					, Day02, Day03, Day01
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.12
-                       , containers >= 0.6 && < 0.7
+                       , containers >= 0.6
 					   , linear >= 1.20 && < 2
 					   , lens >= 4.17 && < 5
 					   , attoparsec >= 0.13 && < 1
@@ -79,18 +89,20 @@ executable adventOfCode2018
 					   , random >= 1.1
 					   , semigroupoids >= 5.3.1
 					   , semigroups >= 0.18
+					   , advent-lib
 
   -- Directories containing source files.
-  hs-source-dirs:      src
+  hs-source-dirs:      src, lib
 
   -- Base language which the package is written in.
   default-language:    Haskell2010
   ghc-options: -O2 -fno-warn-tabs
 
 test-suite doctest
-	build-depends:		base >= 4.12, doctest >= 0.16
+	build-depends:	base >= 4.12, doctest >= 0.16
+					, advent-lib
 	default-language:	Haskell2010
-	hs-source-dirs:		test
+	hs-source-dirs:		test, src, lib
 	main-is:			Main.hs
 	type:				exitcode-stdio-1.0
 	ghc-options: -fno-warn-tabs
