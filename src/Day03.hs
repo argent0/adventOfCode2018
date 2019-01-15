@@ -2,7 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE Strict #-}
-module Day03bis (
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+module Day03 (
 	solve_1
 ) where
 
@@ -17,6 +19,51 @@ import qualified Data.List as DL
 import Debug.Trace
 
 import qualified Util.QuadTree as QT
+
+import Data.List.NonEmpty
+
+data QuadTree a
+	= Leaf a
+	| Branch a (QuadTree a) (QuadTree a) (QuadTree a) (QuadTree a)
+	deriving (Show, Functor, Foldable)
+
+-- | Rectangle constructor
+rect :: Int -> Int -> Int -> Int -> QT.Rect
+rect x y w h = QT.Rect (L.V2 x y) (QT.Size w h)
+
+-- | p `relPos` q = relative position of p w.r.t. q
+--
+-- >>> relPos (L.V2 1 1) (L.V2 0 0)
+-- NE
+-- >>> relPos (L.V2 (-1) 1) (L.V2 0 0)
+-- NW
+-- >>> relPos (L.V2 (-1) (-1)) (L.V2 0 0)
+-- SW
+-- >>> relPos (L.V2 1 (-1)) (L.V2 0 0)
+-- SE
+relPos :: QT.Pos -> QT.Pos -> QT.RelPos
+relPos (L.V2 x y) (L.V2 xx yy)
+	| (x >= xx) && (y > yy) = QT.NE
+	| (x < xx) && (y >= yy) = QT.NW
+	| (x <= xx) && (y < yy) = QT.SW
+	| (x > xx) && (y <= yy) = QT.SE
+	| otherwise = QT.CO
+
+-- | Relative position between a square and a point
+--
+-- >>> rectPointRelPos (rect (-1) 1 2 2) (L.V2 0 0)
+-- CO
+-- >>> rectPointRelPos (rect (-2) (-2) 1 1) (L.V2 0 0)
+-- SW
+-- >>> rectPointRelPos (rect (-1) (-1) 2 1) (L.V2 0 0)
+-- CO
+rectPointRelPos :: QT.Rect -> QT.Pos -> QT.RelPos
+rectPointRelPos (QT.Rect pos@(L.V2 x y) (QT.Size w h)) ref@(L.V2 xx yy) =
+	case relPos pos ref of
+		QT.NW -> if (x + w < xx) && (y + h <= yy) then QT.NW else QT.CO
+		QT.SW -> if (x + w <= xx) then QT.SW else QT.CO
+		QT.NE -> if (y + h < y) then QT.NE else QT.CO
+		o -> o
 
 newtype Id = Id Int deriving Show
 
@@ -48,7 +95,7 @@ solveWithQt :: QT.QuadTree Claim -> Integer
 solveWithQt quadTree =
 	DL.foldl' (+) 0 $
 	fmap (const 1) $
-	filter (>1) $
+	DL.filter (>1) $
 	fmap (DL.foldl' (+) 0 . fmap (const 1) . (`QT.pinch` quadTree)) $
 	(L.V2 <$> [1..1000] <*> [1..1000])
 
@@ -57,7 +104,7 @@ solveWithClaims :: [Claim] -> Integer
 solveWithClaims claims =
 	DL.foldl' (+) 0 $
 	fmap (const 1) $
-	filter pred $
+	DL.filter pred $
 	(L.V2 <$> [1..1000] <*> [1..1000])
 	where
 	pred :: QT.Pos -> Bool
@@ -72,8 +119,8 @@ solveWithClaims claims =
 -- collide all claims with the quadtree
 solve2WithQt :: QT.QuadTree Claim -> [Claim]
 solve2WithQt quadTree =
-	map fst $
-	filter ((==1).snd) $
+	fmap fst $
+	DL.filter ((==1).snd) $
 	fmap (\c@(Claim _ r) -> (c,
 		DL.foldl' (+) 0 $ fmap (const 1) $ r `QT.collide` qtr)) $
 	QT.qtToList quadTree
