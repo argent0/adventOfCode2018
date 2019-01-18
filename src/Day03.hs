@@ -22,6 +22,31 @@ import qualified Util.QuadTree as QT
 
 import Data.List.NonEmpty
 
+import Control.Comonad.Cofree
+
+--
+-- LeftTurn bt a
+--   a
+--  /
+-- bt
+--
+-- RightTurn a bt
+--   a
+--    \
+--    bt
+--
+-- Bifurcation lt a rt
+--   a
+--  / \
+-- lt rt
+data BinaryTree a
+	= Leaf a
+	| LeftTurn (BinaryTree a) a
+	| RightTurn a (BinaryTree a)
+	| Bifurcation (BinaryTree a) a (BinaryTree a)
+	deriving Show
+
+
 data QuadTree a
 	= Leaf a
 	| Branch a (QuadTree a) (QuadTree a) (QuadTree a) (QuadTree a)
