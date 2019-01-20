@@ -10,7 +10,7 @@ module Day03 (
 
 import Linear (V2)
 import qualified Linear as L
-import Control.Lens hiding (contains, Empty)
+import Control.Lens hiding (contains, Empty, (:<))
 import qualified System.IO as SysIO
 import Data.Attoparsec.Text (Parser)
 import qualified Data.Attoparsec.Text as AP
@@ -22,31 +22,7 @@ import qualified Util.QuadTree as QT
 
 import Data.List.NonEmpty
 
-import Control.Comonad.Cofree
-
---
--- LeftTurn bt a
---   a
---  /
--- bt
---
--- RightTurn a bt
---   a
---    \
---    bt
---
--- Bifurcation lt a rt
---   a
---  / \
--- lt rt
-data BinaryTree a
-	= Leaf a
-	| LeftTurn (BinaryTree a) a
-	| RightTurn a (BinaryTree a)
-	| Bifurcation (BinaryTree a) a (BinaryTree a)
-	deriving Show
-
-
+{-
 data QuadTree a
 	= Leaf a
 	| Branch a (QuadTree a) (QuadTree a) (QuadTree a) (QuadTree a)
@@ -167,6 +143,10 @@ solve_1= do
 			--filter (`contains` (L.V2 1 160)) $
 			fmap (\(AP.Done _ c) -> c) $
 			fmap (\(AP.Partial p) -> p "") (fmap (AP.parse parseClaim) file_lines)
+		
+-}
+solve_1 :: IO ()
+solve_1 = undefined
 
 {- 90105 is too low -}
 {- 118223 is right -}
