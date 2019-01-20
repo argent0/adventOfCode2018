@@ -16,7 +16,7 @@ instance Arbitrary Wind where
 	arbitrary = oneof $ fmap pure $ [N, S, E, W, NWSE, SWNE]
 
 instance Arbitrary a => Arbitrary (Grid a) where
-	arbitrary = oneof [leafGen] --, vertexGen, sideGen, vertexCompGen]
+	arbitrary = oneof [leafGen, vertexCompGen] --, vertexGen, sideGen, vertexCompGen]
 		where
 		leafGen :: Gen (Grid a)
 		leafGen = leaf <$> arbitrary
@@ -49,7 +49,7 @@ main = do
 	--print $ (a <> b) <> c
 	--print $ a <> (b <> c)
 	--print $ (a <> b) <> c == a <> (b <> c)
-	--quickCheck prop_quadtree_assoc
+	quickCheck prop_quadtree_assoc
 	where
 	a,b,c :: Grid ()
 	a = Grid {unGrid = () :< VertexF Q4 (() :< LeafF)}
