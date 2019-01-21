@@ -1,3 +1,94 @@
+{-
+ - You finally have a chance to look at all of the produce moving around.
+ - Chocolate, cinnamon, mint, chili peppers, nutmeg, vanilla... the Elves must
+ - be growing these plants to make hot chocolate! As you realize this, you
+ - hear a conversation in the distance. When you go to investigate, you
+ - discover two Elves in what appears to be a makeshift underground kitchen
+ - laboratory.
+ -
+ - The Elves are trying to come up with the ultimate hot chocolate recipe; the
+ - 're even maintaining a scoreboard which tracks the quality score (0-9) of
+ - each recipe.
+ -
+ - Only two recipes are on the board: the first recipe got a score of 3, the
+ - second, 7. Each of the two Elves has a current recipe: the first Elf starts
+ - with the first recipe, and the second Elf starts with the second recipe.
+ -
+ - To create new recipes, the two Elves combine their current recipes. This
+ - creates new recipes from the digits of the sum of the current recipes'
+ - scores. With the current recipes' scores of 3 and 7, their sum is 10, and
+ - so two new recipes would be created: the first with score 1 and the second
+ - with score 0. If the current recipes' scores were 2 and 3, the sum, 5,
+ - would only create one recipe (with a score of 5) with its single digit.
+ -
+ - The new recipes are added to the end of the scoreboard in the order they
+ - are created. So, after the first round, the scoreboard is 3, 7, 1, 0.
+ -
+ - After all new recipes are added to the scoreboard, each Elf picks a new
+ - current recipe. To do this, the Elf steps forward through the scoreboard a
+ - number of recipes equal to 1 plus the score of their current recipe. So,
+ - after the first round, the first Elf moves forward 1 + 3 = 4 times, while
+ - the second Elf moves forward 1 + 7 = 8 times. If they run out of recipes,
+ - they loop back around to the beginning. After the first round, both Elves
+ - happen to loop around until they land on the same recipe that they had in
+ - the beginning; in general, they will move to different recipes.
+ -
+ - Drawing the first Elf as parentheses and the second Elf as square brackets,
+ - they continue this process:
+ -
+ - (3)[7]
+ - (3)[7] 1  0
+ -  3  7  1 [0](1) 0
+ -  3  7  1  0 [1] 0 (1)
+ - (3) 7  1  0  1  0 [1] 2
+ -  3  7  1  0 (1) 0  1  2 [4]
+ -  3  7  1 [0] 1  0 (1) 2  4  5
+ -  3  7  1  0 [1] 0  1  2 (4) 5  1
+ -  3 (7) 1  0  1  0 [1] 2  4  5  1  5
+ -  3  7  1  0  1  0  1  2 [4](5) 1  5  8
+ -  3 (7) 1  0  1  0  1  2  4  5  1  5  8 [9]
+ -  3  7  1  0  1  0  1 [2] 4 (5) 1  5  8  9  1  6
+ -  3  7  1  0  1  0  1  2  4  5 [1] 5  8  9  1 (6) 7
+ -  3  7  1  0 (1) 0  1  2  4  5  1  5 [8] 9  1  6  7  7
+ -  3  7 [1] 0  1  0 (1) 2  4  5  1  5  8  9  1  6  7  7  9
+ -  3  7  1  0 [1] 0  1  2 (4) 5  1  5  8  9  1  6  7  7  9  2
+ -
+ - The Elves think their skill will improve after making a few recipes (your
+ - puzzle input). However, that could take ages; you can speed this up
+ - considerably by identifying the scores of the ten recipes after that. For
+ - example:
+ -
+ -     If the Elves think their skill will improve after making 9 recipes, the
+ -     scores of the ten recipes after the first nine on the scoreboard would
+ -     be 5158916779 (highlighted in the last line of the diagram).
+ -
+ -     After 5 recipes, the scores of the next ten would be 0124515891.
+ -     After 18 recipes, the scores of the next ten would be 9251071085.
+ -     After 2018 recipes, the scores of the next ten would be 5941429882.
+ -
+ - What are the scores of the ten recipes immediately after the number of
+ - recipes in your puzzle input?
+ -
+ - Your puzzle answer was 1221283494.
+ -
+ - The first half of this puzzle is complete! It provides one gold star: *
+ - --- Part Two ---
+ -
+ - As it turns out, you got the Elves' plan backwards. They actually want to
+ - know how many recipes appear on the scoreboard to the left of the first
+ - recipes whose scores are the digits from your puzzle input.
+ -
+ -     51589 first appears after 9 recipes.
+ -     01245 first appears after 5 recipes.
+ -     92510 first appears after 18 recipes.
+ -     59414 first appears after 2018 recipes.
+ -
+ - How many recipes appear on the scoreboard to the left of the score sequence
+ - in your puzzle input?
+ -
+ - Your puzzle input is still 652601.
+ -
+-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -37,7 +128,12 @@ import qualified Data.Vector as Vector
 
 import Data.Functor.Foldable --recursion-schemes
 import Data.Functor.Foldable.TH --makeBaseFunctor
+import qualified Data.Functor.Base as DFB
 import Control.Comonad.Cofree
+import Control.Monad.Free
+import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NE
+import Data.Bool (bool)
 
 import qualified Data.Foldable as Fld
 
@@ -84,7 +180,7 @@ display :: (Int, Int, CState) -> String
 display (e1, e2, st) =
 	concat $ catMaybes $
 	Arr.elems $
-	Arr.accum acc2 
+	Arr.accum acc2
 		(Arr.accum acc1 (Arr.amap (fmap (printf " %d ")) $ (st ^. storage)) [(e1,Nothing)])
 		[(e2,Nothing)]
 	where
@@ -188,6 +284,19 @@ nextRecipes e ee
 	u = s `mod` 10
 	d = (s `div` 10) `mod` 10
 
+-- | Combine two recipes
+--
+-- >>> combineRecipes 3 7
+-- [1, 0]
+-- >>> combineRecipes 2 3
+-- [5]
+--
+combineRecipes :: Int -> Int -> NonEmpty Int
+combineRecipes a b = bool (q :| [r]) (s :| []) (s < 10)
+	where
+	s = a + b
+	(q, r) = s `divMod` 10
+
 {- Reddit's solution mstksg, interesting idea that doesn't work. The type
  - signatures have been fixed from the original -}
 
@@ -224,7 +333,7 @@ solve_1 =
 
 {- First run ~ 3h
  -  1  4  5  9  1  1  6  9  9  8  1  6  8  5  2  7  6  9  9  5  2  1  5  5  4  1
- -  7  4  1  1  1  2  2  1  1  2  2  5  9  1  1  0  6  3 
+ -  7  4  1  1  1  2  2  1  1  2  2  5  9  1  1  0  6  3
  -  3  8  7  1  8  6  6  6  1  1  4  4  8  1  3  4  1  0  5  1  0  1  5  7  1  3
  -  3  9  1  0  9  7  1  3  2  2  4  1  2  1  2  1  1  2  6  1  0  1  7  5  8  2
  -  1  0  1  1  4  8  4  1  2  2  1  2  8  3  4  9  4
