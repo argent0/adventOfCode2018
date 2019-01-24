@@ -135,7 +135,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import Data.Bool (bool)
 
-import qualified Data.Foldable as Fld
+import qualified Data.Foldable as DF
 
 import Util.Grid
 
@@ -231,7 +231,7 @@ pushMatch (PartialMatch (t:ts) (p:ps)) a
 	| otherwise = PartialMatch (t:ts) []
 
 matchSeq :: Eq a => MatchStatus a -> [a] -> MatchStatus a
-matchSeq = Fld.foldl' pushMatch
+matchSeq = DF.foldl' pushMatch
 
 solve2 :: [Int] -> Int -> (MatchStatus Int,Int,Int, Int, CState)
 solve2 target stSize =
@@ -287,15 +287,124 @@ nextRecipes e ee
 -- | Combine two recipes
 --
 -- >>> combineRecipes 3 7
--- [1, 0]
+-- 1 :| [0]
 -- >>> combineRecipes 2 3
--- [5]
+-- 5 :| []
 --
 combineRecipes :: Int -> Int -> NonEmpty Int
 combineRecipes a b = bool (q :| [r]) (s :| []) (s < 10)
 	where
 	s = a + b
 	(q, r) = s `divMod` 10
+
+-- Queue xs x (y:ys), x is the head, y is the second followed by `ys` and then
+-- `reverse xs`.
+data Queue a =
+	Queue [a] a [a]
+	deriving (Show, Functor)
+
+front :: Queue a -> a
+front (Queue _ a _) = a
+
+enqueue :: Queue a -> a -> Queue a
+enqueue (Queue xs x ys) n = Queue (n:xs) x ys
+
+-- Can I get rid of the maybe using a different type.
+dequeue :: Queue a -> (a, Maybe (Queue a))
+dequeue (Queue [] a []) = (a, Nothing)
+dequeue (Queue xs a []) = let (x:xxs) = reverse xs in (a, Just $ Queue [] x xxs)
+dequeue (Queue xs a (y:ys)) = (a, Just $ Queue xs y ys)
+
+-- | Enqueues a list
+--
+-- >>> enqueueList (Queue "" 'a' "") "bc"
+-- Queue "cb" 'a' ""
+enqueueList :: Queue a -> [a] -> Queue a
+enqueueList = DL.foldl' enqueue
+
+-- | Rotate a queue by  n >= 0 elements.
+rotateQueue :: Int -> Queue a -> Queue a
+rotateQueue 0 q = q
+rotateQueue _ q@(Queue [] a []) = q
+rotateQueue n (Queue xs a []) =
+	let (x:xxs) = reverse xs in rotateQueue (n-1) $ Queue [a] x xxs
+rotateQueue n (Queue xs a (y:ys)) = rotateQueue (n-1) $ Queue (a:xs) y ys
+
+advanceQueue :: Int -> NonEmpty a -> Queue a -> Queue a
+advanceQueue 0 _ q = q
+advanceQueue n rep@(a :| as) (Queue [] _ []) = advanceQueue (n - 1) rep (Queue [] a as)
+advanceQueue n rep (Queue xs _ []) =
+	let (x:xxs) = reverse xs in advanceQueue (n-1) rep (Queue [] x xxs)
+advanceQueue n rep (Queue xs _ (y:ys)) =
+	advanceQueue (n-1) rep (Queue xs y ys)
+
+data RecipeGenerator = RecipeGenerator
+	{ _firstElf :: Queue Int --Al recipes "in front" of the first elf.
+	, _secondElf :: Queue Int --Al recipes "in front" of the second elf.
+	, _total :: NonEmpty Int
+	, _nRecipes :: Integer
+	} deriving Show
+
+makeLenses ''RecipeGenerator
+
+initialState :: RecipeGenerator
+initialState = RecipeGenerator
+	{ _firstElf = Queue [] 3 [7]
+	, _secondElf = Queue [] 7 []
+	, _total = 7 :| [3]
+	, _nRecipes = 2
+	}
+
+-- | Evolve the generator of recipes
+--
+-- >>> putStr $ unlines $ map (unwords . map show . reverse . DF.toList . (^. total)) $ take 16 $ iterate nextState initialState
+-- 3 7
+-- 3 7 1 0
+-- 3 7 1 0 1 0
+-- 3 7 1 0 1 0 1
+-- 3 7 1 0 1 0 1 2
+-- 3 7 1 0 1 0 1 2 4
+-- 3 7 1 0 1 0 1 2 4 5
+-- 3 7 1 0 1 0 1 2 4 5 1
+-- 3 7 1 0 1 0 1 2 4 5 1 5
+-- 3 7 1 0 1 0 1 2 4 5 1 5 8
+-- 3 7 1 0 1 0 1 2 4 5 1 5 8 9 
+-- 3 7 1 0 1 0 1 2 4 5 1 5 8 9 1 6
+-- 3 7 1 0 1 0 1 2 4 5 1 5 8 9 1 6 7
+-- 3 7 1 0 1 0 1 2 4 5 1 5 8 9 1 6 7 7
+-- 3 7 1 0 1 0 1 2 4 5 1 5 8 9 1 6 7 7 9
+-- 3 7 1 0 1 0 1 2 4 5 1 5 8 9 1 6 7 7 9 2
+--
+nextState :: RecipeGenerator -> RecipeGenerator
+nextState recipeGenerator =
+	RecipeGenerator
+		{ _firstElf = advanceQueue
+			(firstElfRecipe + 1)
+			(NE.reverse newTotal)
+			(enqueueList (recipeGenerator ^. firstElf) $ DF.toList newRecipes)
+		, _secondElf = advanceQueue
+			(secondElfRecipe + 1)
+			(NE.reverse newTotal)
+			(enqueueList (recipeGenerator ^. secondElf) $ DF.toList newRecipes)
+		, _total = newTotal
+		, _nRecipes = (recipeGenerator ^. nRecipes) + DL.genericLength (DF.toList newRecipes)
+	}
+	where
+	firstElfRecipe = front (recipeGenerator ^. firstElf)
+	secondElfRecipe = front (recipeGenerator ^. secondElf)
+	newRecipes = combineRecipes firstElfRecipe secondElfRecipe
+	newTotal = foldr NE.cons (recipeGenerator ^. total) $ NE.reverse newRecipes
+
+do1 :: Integer -> [Int]
+do1 nPractice = answer
+	where
+	answer = take 10 $ DL.genericDrop nPractice $ DL.reverse $ DF.toList $ (finalState ^. total)
+	finalState = head $ dropWhile ((< nPractice + 10) . (^. nRecipes)) $
+		iterate nextState initialState
+
+-- trace (">" ++ show (enqueueList (recipeGenerator ^. firstElf) $ DF.toList newRecipes)) $
+-- trace (">" ++ show (enqueueList (recipeGenerator ^. secondElf) $ DF.toList newRecipes)) $
+
 
 {- Reddit's solution mstksg, interesting idea that doesn't work. The type
  - signatures have been fixed from the original -}
@@ -324,12 +433,7 @@ combineRecipes a b = bool (q :| [r]) (s :| []) (s < 10)
 
 solve_1 :: IO ()
 solve_1 =
-	putStrLn $ display $
-		--solve1 660000  652601 10
-		quinq $ solve2 [6,5,2,6,0,1] 20
---	SysIO.withFile "inputs/day13" SysIO.ReadMode $ \input_fh ->
---		(lines <$> SysIO.hGetContents input_fh) >>= \file_lines -> do
---		print $ file_lines
+	print $ do1 652601
 
 {- First run ~ 3h
  -  1  4  5  9  1  1  6  9  9  8  1  6  8  5  2  7  6  9  9  5  2  1  5  5  4  1
