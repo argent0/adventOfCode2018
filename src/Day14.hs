@@ -109,7 +109,7 @@ import qualified Data.Attoparsec.Text as AP
 import qualified Data.Text as T
 import Debug.Trace
 
-import Data.Either (partitionEithers)
+import qualified Data.Either as DE
 import Data.Maybe (catMaybes)
 
 import Control.Monad (forever, when, join, replicateM, void, foldM, foldM_)
@@ -139,7 +139,10 @@ import qualified Data.Foldable as DF
 
 import Util.Grid
 
+import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
+
+import qualified Control.Monad.State.Strict as ST
 
 
 sum' :: (Foldable t, Num a) => t a -> a
@@ -310,10 +313,10 @@ enqueue :: Queue a -> a -> Queue a
 enqueue (Queue xs x ys) n = Queue (n:xs) x ys
 
 -- Can I get rid of the maybe using a different type.
-dequeue :: Queue a -> (a, Maybe (Queue a))
-dequeue (Queue [] a []) = (a, Nothing)
-dequeue (Queue xs a []) = let (x:xxs) = reverse xs in (a, Just $ Queue [] x xxs)
-dequeue (Queue xs a (y:ys)) = (a, Just $ Queue xs y ys)
+-- dequeue :: Queue a -> (a, Maybe (Queue a))
+-- dequeue (Queue [] a []) = (a, Nothing)
+-- dequeue (Queue xs a []) = let (x:xxs) = reverse xs in (a, Just $ Queue [] x xxs)
+-- dequeue (Queue xs a (y:ys)) = (a, Just $ Queue xs y ys)
 
 -- | Enqueues a list
 --
@@ -323,36 +326,53 @@ enqueueList :: Queue a -> [a] -> Queue a
 enqueueList = DL.foldl' enqueue
 
 -- | Rotate a queue by  n >= 0 elements.
-rotateQueue :: Int -> Queue a -> Queue a
-rotateQueue 0 q = q
-rotateQueue _ q@(Queue [] a []) = q
-rotateQueue n (Queue xs a []) =
-	let (x:xxs) = reverse xs in rotateQueue (n-1) $ Queue [a] x xxs
-rotateQueue n (Queue xs a (y:ys)) = rotateQueue (n-1) $ Queue (a:xs) y ys
+--rotateQueue :: Int -> Queue a -> Queue a
+--rotateQueue 0 q = q
+--rotateQueue _ q@(Queue [] a []) = q
+--rotateQueue n (Queue xs a []) =
+--	let (x:xxs) = reverse xs in rotateQueue (n-1) $ Queue [a] x xxs
+--rotateQueue n (Queue xs a (y:ys)) = rotateQueue (n-1) $ Queue (a:xs) y ys
 
 advanceQueue :: Int -> NonEmpty a -> Queue a -> Queue a
 advanceQueue 0 _ q = q
-advanceQueue n rep@(a :| as) (Queue [] _ []) = advanceQueue (n - 1) rep (Queue [] a as)
+advanceQueue n rep@(a :| as) (Queue [] _ []) = --trace ("reverse") $
+	advanceQueue (n - 1) rep (Queue [] a as)
 advanceQueue n rep (Queue xs _ []) =
 	let (x:xxs) = reverse xs in advanceQueue (n-1) rep (Queue [] x xxs)
 advanceQueue n rep (Queue xs _ (y:ys)) =
 	advanceQueue (n-1) rep (Queue xs y ys)
 
 data RecipeGenerator = RecipeGenerator
-	{ _firstElf :: Queue Int --Al recipes "in front" of the first elf.
-	, _secondElf :: Queue Int --Al recipes "in front" of the second elf.
+	{ _firstElf :: Either (Seq Int) (Queue Int) --Al recipes "in front" of the first elf.
+	, _secondElf :: Either (Seq Int) (Queue Int) --Al recipes "in front" of the second elf.
 	, _total :: NonEmpty Int
 	, _nRecipes :: Integer
+	, _firstPos :: NonEmpty Integer
+	, _secondPos :: NonEmpty Integer
+	, _memory :: Map Integer [Integer]
+	, _firstInitialPos :: Integer
 	} deriving Show
 
 makeLenses ''RecipeGenerator
 
+recipe :: Getter (Either (Seq Int) (Queue Int)) Int
+recipe = to $ g
+	where
+	g :: Either (Seq Int) (Queue Int) -> Int
+	g (Left s) = case Seq.viewl s of
+		(a Seq.:< _) -> a
+	g (Right (Queue _ r _)) = r
+
 initialState :: RecipeGenerator
 initialState = RecipeGenerator
-	{ _firstElf = Queue [] 3 [7]
-	, _secondElf = Queue [] 7 []
+	{ _firstElf = Right $ Queue [] 3 [7]
+	, _secondElf = Right $ Queue [] 7 []
 	, _total = 7 :| [3]
 	, _nRecipes = 2
+	, _firstPos = 0 :| []
+	, _secondPos = 1 :| []
+	, _memory = Map.fromList [(8,[]), (9,[])]
+	, _firstInitialPos = 0
 	}
 
 -- | Evolve the generator of recipes
@@ -376,24 +396,48 @@ initialState = RecipeGenerator
 -- 3 7 1 0 1 0 1 2 4 5 1 5 8 9 1 6 7 7 9 2
 --
 nextState :: RecipeGenerator -> RecipeGenerator
-nextState recipeGenerator =
-	RecipeGenerator
-		{ _firstElf = advanceQueue
-			(firstElfRecipe + 1)
-			(NE.reverse newTotal)
-			(enqueueList (recipeGenerator ^. firstElf) $ DF.toList newRecipes)
-		, _secondElf = advanceQueue
-			(secondElfRecipe + 1)
-			(NE.reverse newTotal)
-			(enqueueList (recipeGenerator ^. secondElf) $ DF.toList newRecipes)
-		, _total = newTotal
-		, _nRecipes = (recipeGenerator ^. nRecipes) + DL.genericLength (DF.toList newRecipes)
-	}
+nextState rg = ST.execState ( do
+		firstElf %= \fe -> case fe of
+			Right q -> Right (advanceQueue
+				(e1Recipe + 1)
+				(NE.reverse newTotal)
+				(enqueueList q $ DF.toList newRecipes)
+				)
+			Left s -> undefined
+
+		secondElf .= Right (advanceQueue
+				(e2Recipe + 1)
+				(NE.reverse newTotal)
+				(enqueueList (DE.fromRight undefined (rg ^. secondElf)) $ DF.toList newRecipes)
+			)
+
+		total .= newTotal
+
+		nRecipes .= nextNRecipes
+
+		firstPos .= if e1NextPos < 10
+			then e1NextPos :| []
+			else NE.cons e1NextPos (rg ^. firstPos)
+
+		secondPos .= NE.cons e2NextPos (rg ^. secondPos)
+
+		when (e1NextPos > 10 && (rg ^. firstInitialPos) `elem` [8,9]) $
+			memory %= Map.adjust (e1NextPos:) (rg ^. firstInitialPos)
+
+		firstInitialPos .= if e1NextPos < 10
+			then e1NextPos
+			else (rg ^. firstInitialPos)
+	) rg
 	where
-	firstElfRecipe = front (recipeGenerator ^. firstElf)
-	secondElfRecipe = front (recipeGenerator ^. secondElf)
-	newRecipes = combineRecipes firstElfRecipe secondElfRecipe
-	newTotal = foldr NE.cons (recipeGenerator ^. total) $ NE.reverse newRecipes
+	e1NextPos = (NE.head (rg ^. firstPos) + fromIntegral e1Recipe + 1) `mod` nextNRecipes
+	e2NextPos = (NE.head (rg ^. secondPos) + fromIntegral e2Recipe + 1) `mod` nextNRecipes
+
+	e1Recipe, e2Recipe :: Int
+	e1Recipe = (rg ^. firstElf . recipe)
+	e2Recipe = (rg ^. secondElf . recipe)
+	newRecipes = combineRecipes e1Recipe e2Recipe
+	newTotal = foldr NE.cons (rg ^. total) $ NE.reverse newRecipes
+	nextNRecipes = (rg ^. nRecipes) + DL.genericLength (DF.toList newRecipes)
 
 do1 :: Integer -> [Int]
 do1 nPractice = answer
