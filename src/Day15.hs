@@ -373,10 +373,8 @@ import qualified Data.List as DL
 import qualified Data.Attoparsec.Text as AP
 import qualified Data.Text as T
 import Debug.Trace
-
 import Data.Either (partitionEithers)
 import Data.Maybe (catMaybes, isJust, fromJust)
-
 import Control.Monad (forever, when, join, replicateM, void, foldM, foldM_)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -384,25 +382,16 @@ import qualified Data.Set as Set
 import Data.Char (ord)
 import Control.Arrow
 import Control.Lens
-
 import qualified Data.Array.Diff as Arr
-
 import Linear hiding (trace)
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
-
 import Data.Functor.Foldable --recursion-schemes
 import Data.Functor.Foldable.TH --makeBaseFunctor
 import Control.Comonad.Cofree
-
 import qualified Data.Foldable as Fld
-
 import Util.Grid
-
 import qualified Data.Sequence as Seq
-
-sum' :: (Foldable t, Num a) => t a -> a
-sum' = DL.foldl' (+) 0
 
 data MapElement = Wall | OpenSapce deriving (Show, Eq)
 
@@ -426,6 +415,12 @@ creatureToChar :: Creature -> Char
 creatureToChar Elf = 'E'
 creatureToChar Goblin = 'G'
 
+-- | Compares two 2-d positions on a greed by reading order.
+--
+-- >>> readingOrder (V2 0 0) (V2 1 0)
+-- LT
+-- >>> readingOrder (V2 1 0) (V2 0 0)
+-- GT
 readingOrder :: Ord a => V2 a -> V2 a -> Ordering
 readingOrder = compare `on` swap
 	where
