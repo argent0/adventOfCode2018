@@ -65,7 +65,7 @@ executable adventOfCode2018
   main-is:             Main.hs
 
   -- Modules included in this executable, other than Main.
-  other-modules:	Day19, Day17, Day16, Day15, Day14, Day13, Day12, Day11, Day10
+  other-modules:	Day15, Day17, Day16, Day19, Day14, Day13, Day12, Day11, Day10
 					, Day04, Day05, Day06, Day07, Day08, Day09
 					, Day02, Day03, Day01
 

@@ -354,6 +354,7 @@ Outcome: 20 * 937 = 18740
 What is the outcome of the combat described in your puzzle input?
 
 -}
+{- HLINT ignore "Unused LANGUAGE pragma" -}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -390,7 +391,7 @@ import Data.Functor.Foldable --recursion-schemes
 import Data.Functor.Foldable.TH --makeBaseFunctor
 import Control.Comonad.Cofree
 import qualified Data.Foldable as Fld
-import Util.Grid
+--import Util.Grid
 import qualified Data.Sequence as Seq
 
 data MapElement = Wall | OpenSapce deriving (Show, Eq)
@@ -415,89 +416,81 @@ creatureToChar :: Creature -> Char
 creatureToChar Elf = 'E'
 creatureToChar Goblin = 'G'
 
--- | Compares two 2-d positions on a greed by reading order.
+-- | Compares two 2-d positions on a grid by reading order.
 --
--- >>> readingOrder (V2 0 0) (V2 1 0)
+-- >>> readingOrder (0, 0) (1, 0)
 -- LT
--- >>> readingOrder (V2 1 0) (V2 0 0)
+-- >>> readingOrder (1, 0) (0, 0)
 -- GT
-readingOrder :: Ord a => V2 a -> V2 a -> Ordering
+readingOrder :: Ord a => (a, a) -> (a, a) -> Ordering
 readingOrder = compare `on` swap
 	where
-	swap (V2 x y) = V2 y x
+	swap (x, y) = (y, x)
 
 --type ProblemMap = Grid2d Int MapElement
 type ProblemMap = Arr.Array (Int, Int) MapElement
 
-loadMap :: [String] -> ProblemMap
-loadMap lns =
-	Arr.array ((1,1),(nCols,nLines)) $ zip pos $ fmap (readMap . charToMapElement) $ concat lns
+type CreatureMap = Arr.Array (Int, Int) (Maybe Creature)
+
+loadMapAndCreatures :: [String] -> (ProblemMap, CreatureMap)
+loadMapAndCreatures lns = (Arr.amap (readMap. charToMapElement) &&& Arr.amap charToCreature) chrArr
 	where
-	pos = fmap (\(V2 x y) -> (x,y)) $ DL.sortBy readingOrder $ V2 <$> [1..nCols] <*> [1..nLines]
-	nCols = length $ head $ lns
+	chrArr :: Arr.Array (Int, Int) Char
+	chrArr = Arr.array  ((1, 1), (nCols, nLines)) $ zip pos $ concat lns
+	pos = DL.sortBy readingOrder $ (,) <$> [1..nCols] <*> [1..nLines]
+	nCols = length $ head lns
 	nLines = length lns
 	readMap Nothing = OpenSapce
 	readMap (Just e) = e
 
-type CreatureMap = Arr.Array (Int,Int) (Maybe Creature)
-
-loadCreatures :: [String] -> CreatureMap
-loadCreatures lns = 
-	Arr.array ((1,1),(nCols,nLines)) $ zip pos $ fmap charToCreature $ concat lns
-	where
-	pos = fmap (\(V2 x y) -> (x,y)) $ DL.sortBy readingOrder $ V2 <$> [1..nCols] <*> [1..nLines]
-	nCols = length $ head $ lns
-	nLines = length lns
-
 mapChars :: ProblemMap -> Arr.Array (Int,Int) Char
-mapChars pm = Arr.amap mapElementToChar pm
+mapChars = Arr.amap mapElementToChar
 
 printMap :: ProblemMap -> IO ()
 printMap pm =
 	putStrLn $ unlines $
 		fmap (fmap (mapElementToChar . snd)) $
 		DL.groupBy ((==)  `on` (snd . fst)) $
-		DL.sortBy (readingOrder `on` (uncurry V2 . fst)) $
+		DL.sortBy (readingOrder `on` fst) $
 		Arr.assocs pm
 
 -- Print creatures and map
 printCreatures :: ProblemMap -> CreatureMap -> IO ()
 printCreatures pm cm =
 	putStrLn $ unlines $
-		fmap (fmap (snd)) $
+		fmap (fmap snd) $
 		DL.groupBy ((==)  `on` (snd . fst)) $
-		DL.sortBy (readingOrder `on` (uncurry V2 . fst)) $
+		DL.sortBy (readingOrder `on` fst) $
 		Arr.assocs finalChars
 	where
-	finalChars = (mapChars pm) Arr.// creatureChars
+	finalChars = mapChars pm Arr.// creatureChars
 	creatureChars = fmap (second (creatureToChar . fromJust)) $ filter (isJust . snd) $ Arr.assocs cm
 
 printOverlay :: [((Int,Int),Char)] -> ProblemMap -> CreatureMap -> IO ()
 printOverlay over pm cm =
 	putStrLn $ unlines $
-		fmap (fmap (snd)) $
+		fmap (fmap snd) $
 		DL.groupBy ((==)  `on` (snd . fst)) $
-		DL.sortBy (readingOrder `on` (uncurry V2 . fst)) $
+		DL.sortBy (readingOrder `on` fst) $
 		Arr.assocs finalChars
 	where
-	finalChars = (mapChars pm) Arr.// (creatureChars ++ over)
+	finalChars = mapChars pm Arr.// (creatureChars ++ over)
 	creatureChars = fmap (second (creatureToChar . fromJust)) $ filter (isJust . snd) $ Arr.assocs cm
 
 adjacents :: Creature -> ProblemMap -> CreatureMap -> [(Int, Int)]
 adjacents actor pm cm =
-	fmap (head) $ DL.group $
+	fmap head $ DL.group $
 	filter (not . impassable) $ concatMap (adjs . fst) $
 		filter ((/= actor) . fromJust . snd) $
 		filter (isJust . snd) $
 		Arr.assocs cm
 	where
 	adjs (x,y) = [(x,y-1),(x-1,y), (x,y+1), (x+1,y)]
-	impassable (x,y) = ((pm Arr.! (x,y)) == Wall) || (isJust $ cm Arr.! (x,y))
+	impassable (x,y) = ((pm Arr.! (x,y)) == Wall) || isJust (cm Arr.! (x,y))
 
 solve_1 :: IO ()
 solve_1 =
 	SysIO.withFile "inputs/day15" SysIO.ReadMode $ \input_fh ->
 		(lines <$> SysIO.hGetContents input_fh) >>= \file_lines -> do
-		let problem_map = loadMap $ file_lines
-		let creatures = loadCreatures $ file_lines
-		printOverlay (fmap (,'?') $ adjacents Goblin problem_map creatures) problem_map creatures
+		let (problem_map, creatures) = loadMapAndCreatures file_lines
+		printOverlay ((,'?') <$> adjacents Goblin problem_map creatures) problem_map creatures
