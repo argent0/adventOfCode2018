@@ -432,6 +432,10 @@ type ProblemMap = Arr.Array (Int, Int) MapElement
 
 type CreatureMap = Arr.Array (Int, Int) (Maybe Creature)
 
+-- | Load the map and creatures from the input
+--
+-- >>> filter (isJust . snd) $ Arr.assocs $ snd $ loadMapAndCreatures smallMap
+-- [((2,2),Just Elf),((3,4),Just Goblin),((5,2),Just Goblin),((6,4),Just Goblin)]
 loadMapAndCreatures :: [String] -> (ProblemMap, CreatureMap)
 loadMapAndCreatures lns = (Arr.amap (readMap. charToMapElement) &&& Arr.amap charToCreature) chrArr
 	where
@@ -477,6 +481,12 @@ printOverlay over pm cm =
 	finalChars = mapChars pm Arr.// (creatureChars ++ over)
 	creatureChars = fmap (second (creatureToChar . fromJust)) $ filter (isJust . snd) $ Arr.assocs cm
 
+-- | List the positions of the valid targes of a given creature
+targets :: CreatureMap -> Creature -> [(Int, Int)]
+targets creatureMap creature = fmap fst $
+	filter ( (\mc -> isJust mc && mc /= Just creature) . snd) $
+	Arr.assocs creatureMap
+
 adjacents :: Creature -> ProblemMap -> CreatureMap -> [(Int, Int)]
 adjacents actor pm cm =
 	fmap head $ DL.group $
@@ -494,3 +504,11 @@ solve_1 =
 		(lines <$> SysIO.hGetContents input_fh) >>= \file_lines -> do
 		let (problem_map, creatures) = loadMapAndCreatures file_lines
 		printOverlay ((,'?') <$> adjacents Goblin problem_map creatures) problem_map creatures
+
+smallMap :: [String]
+smallMap =
+	["#######",
+	 "#E..G.#",
+	 "#...#.#",
+	 "#.G.#G#",
+	 "#######"]
