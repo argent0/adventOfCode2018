@@ -362,6 +362,7 @@ What is the outcome of the combat described in your puzzle input?
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Day15 (
 	solve_1
 ) where
@@ -387,12 +388,16 @@ import qualified Data.Array.Diff as Arr
 import Linear hiding (trace)
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
-import Data.Functor.Foldable --recursion-schemes
-import Data.Functor.Foldable.TH --makeBaseFunctor
 import Control.Comonad.Cofree
 import qualified Data.Foldable as Fld
 --import Util.Grid
 import qualified Data.Sequence as Seq
+
+import qualified Control.Monad.Trans.Free as CMTF
+import qualified Control.Monad.Free as CMF
+import qualified Data.Functor.Identity as DFI
+import qualified Data.Functor.Foldable as DFF --recursion-schemes
+import Data.Functor.Foldable.TH --makeBaseFunctor
 
 data MapElement = Wall | OpenSapce deriving (Show, Eq)
 
@@ -504,6 +509,33 @@ solve_1 =
 		(lines <$> SysIO.hGetContents input_fh) >>= \file_lines -> do
 		let (problem_map, creatures) = loadMapAndCreatures file_lines
 		printOverlay ((,'?') <$> adjacents Goblin problem_map creatures) problem_map creatures
+
+-- | Simulate a battle
+--
+-- Basic fight recursion
+--
+-- data Rec s
+-- -- End with state s
+-- 	= Done s
+-- 	-- Continue with a new state `s`
+-- 	| Rec (Rec s)
+-- 
+-- Rec ~ Free Identity
+--
+-- >>> battle (+1) (==10) 0
+-- 10
+
+battle :: forall s .
+	(s -> s)		-- ^ How to evolve the state (go from round n to round n + 1)
+	-> (s -> Bool)	-- ^ True is the fight is over
+	-> s			-- ^ The initial state
+	-> s
+battle nextState isDone = DFI.runIdentity . CMF.retract . DFF.ana coAlg
+	where
+	coAlg :: s -> DFF.Base (CMF.Free DFI.Identity s) s
+	coAlg s = if isDone s
+		then CMTF.Pure s
+		else CMTF.Free $ Identity $ nextState s
 
 smallMap :: [String]
 smallMap =
