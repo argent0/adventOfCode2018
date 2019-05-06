@@ -1,12 +1,6 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 module Day02
 	( solve_1
@@ -63,7 +57,7 @@ import Util.Recursion (semiQuadTime, count)
 -- 00:14 < Solonarv> Seems like it'd be quite useful as a monad transformer
 -- 00:14 < c_wraith> (deepseq it with par to get it to run in the background!)
 
--- | Predicate that checks if two elements are in t.
+-- | Predicate that checks if two elements are in a list.
 --
 -- retract :: Free f a -> f a
 -- data Free f a = Pure a | Free (f (Free f a))
@@ -93,17 +87,16 @@ checksum :: [String] -> Integer
 checksum = uncurry (*) . DL.foldl' folder (0,0) . fmap count
 	where
 	folder :: (Integer, Integer) -> Map Char Integer -> (Integer, Integer)
-	folder (p, t) counts = (+p) *** (+t) $ (bool 0 1) *** (bool 0 1) $ elem2 2 3 $ DF.toList counts
+	folder (p, t) counts = (+p) *** (+t) $ bool 0 1 *** bool 0 1 $ elem2 2 3 $ DF.toList counts
 	--(False, False) -> (p, t)
 	--(True, False) -> (p + 1, t)
 	--(False, True) -> (p, t + 1)
 	--(True, True) -> (p + 1, t + 1)
 
 solve_1 :: IO ()
-solve_1= do
-	SysIO.withFile "inputs/day02" SysIO.ReadMode $ \input_fh ->
-		(lines <$> SysIO.hGetContents input_fh) >>= \file_lines ->
-		print $ checksum file_lines
+solve_1= SysIO.withFile "inputs/day02" SysIO.ReadMode $ \input_fh ->
+	(lines <$> SysIO.hGetContents input_fh) >>= \file_lines ->
+	print $ checksum file_lines
 
 -- Part 2
 
@@ -124,7 +117,7 @@ solve_1= do
 -- Pure [a] = Yes [a]
 -- Free (Compose Nothing) = No
 -- Free (Compose (Just (a, ...))) = Rec a ...
-type Cmp a = Free (Maybe `Compose` ((,) a)) [a]
+type Cmp a = Free (Maybe `Compose` (,) a) [a]
 
 --- | Return the common elements when there is only one difference
 --
@@ -146,8 +139,8 @@ commons xx yy = hylo alg coAlg (xx, yy)
 	coAlg :: ([a], [a]) -> Base (Cmp a) ([a], [a])
 	coAlg ([], _) = CMTF.Free (Compose Nothing)
 	coAlg (_, []) = CMTF.Free (Compose Nothing)
-	coAlg ( (a:as), (b:bs) )
-		| a == b = CMTF.Free $ Compose $ Just $ (a, (as, bs))
+	coAlg ( a:as, b:bs )
+		| a == b = CMTF.Free $ Compose $ Just (a, (as, bs))
 		| as == bs = CMTF.Pure as
 		| otherwise = CMTF.Free (Compose Nothing)
 
@@ -407,7 +400,7 @@ input :: IO [String]
 input = do
 	input_fh <- SysIO.openFile "inputs/day02" SysIO.ReadMode
 	contents <- SysIO.hGetContents input_fh
-	pure $ lines $ contents
+	pure $ lines contents
 
 -- | Solve part 2 by comparing all strings
 solve_2 :: IO ()
